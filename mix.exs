@@ -26,6 +26,7 @@ defmodule ExUBL.MixProject do
       {:uuid, "~> 1.1"},
       {:xmerl_c14n, "~> 0.1.0"},
       {:xml_builder, "~> 2.1"},
+      {:sweet_xml, "~> 0.7"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:jason, "~> 1.2"}
     ]
