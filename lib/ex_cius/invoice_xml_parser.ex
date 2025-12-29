@@ -1,10 +1,10 @@
-defmodule ExUBL.InvoiceXmlParser do
+defmodule ExCius.InvoiceXmlParser do
   @moduledoc """
-  Parses UBL 2.1 Invoice XML documents back to the parameter structure used by ExUBL.RequestParams.
+  Parses UBL 2.1 Invoice XML documents back to the parameter structure used by ExCius.RequestParams.
 
-  This module provides the reverse transformation of ExUBL.InvoiceTemplateXML, taking
+  This module provides the reverse transformation of ExCius.InvoiceTemplateXML, taking
   a UBL Invoice XML document and extracting the data into the same parameter structure
-  that can be validated and used by the ExUBL system.
+  that can be validated and used by the ExCius system.
 
   ## Features
 
@@ -18,10 +18,10 @@ defmodule ExUBL.InvoiceXmlParser do
   ## Usage
 
       xml_content = File.read!("invoice.xml")
-      {:ok, params} = ExUBL.InvoiceXmlParser.parse(xml_content)
+      {:ok, params} = ExCius.InvoiceXmlParser.parse(xml_content)
 
       # The params can now be used with RequestParams
-      {:ok, validated_params} = ExUBL.RequestParams.new(params)
+      {:ok, validated_params} = ExCius.RequestParams.new(params)
 
   ## Supported Elements
 
@@ -39,7 +39,7 @@ defmodule ExUBL.InvoiceXmlParser do
   Parses a UBL Invoice XML document and returns parameter structure.
 
   Takes a UBL 2.1 Invoice XML document as a string and extracts all the
-  invoice data into the parameter structure expected by ExUBL.RequestParams.
+  invoice data into the parameter structure expected by ExCius.RequestParams.
 
   ## Parameters
 
@@ -53,7 +53,7 @@ defmodule ExUBL.InvoiceXmlParser do
   ## Examples
 
       iex> xml = "<?xml version=\\"1.0\\"?>..."
-      iex> {:ok, params} = ExUBL.InvoiceXmlParser.parse(xml)
+      iex> {:ok, params} = ExCius.InvoiceXmlParser.parse(xml)
       iex> params.id
       "5-P1-1"
 

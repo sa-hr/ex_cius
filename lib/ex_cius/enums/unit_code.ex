@@ -1,4 +1,4 @@
-defmodule ExUBL.Enums.UnitCode do
+defmodule ExCius.Enums.UnitCode do
   @moduledoc """
   Supported unit codes for UBL invoices (UN/ECE Recommendation 20).
   """

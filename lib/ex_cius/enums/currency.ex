@@ -1,4 +1,4 @@
-defmodule ExUBL.Enums.Currency do
+defmodule ExCius.Enums.Currency do
   @moduledoc """
   Supported currency codes for UBL invoices (ISO 4217).
   """

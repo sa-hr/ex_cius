@@ -75,7 +75,7 @@ valid_invoice_data = %{
 }
 
 IO.puts("Generating XML...")
-{:ok, xml} = ExUBL.generate_invoice(valid_invoice_data)
+{:ok, xml} = ExCius.generate_invoice(valid_invoice_data)
 
 IO.puts("Generated XML full content:")
 IO.puts(xml)

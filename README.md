@@ -1,4 +1,4 @@
-# ExUBL
+# ExCius
 
 An Elixir library for generating UBL 2.1 (Universal Business Language) invoices compliant with the Croatian e-Invoice specification (CIUS-2025).
 
@@ -11,12 +11,12 @@ An Elixir library for generating UBL 2.1 (Universal Business Language) invoices 
 
 ## Installation
 
-Add `ex_ubl` to your list of dependencies in `mix.exs`:
+Add `ex_cius` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:ex_ubl, "~> 0.1.0"}
+    {:ex_cius, "~> 0.1.0"}
   ]
 end
 ```
@@ -99,7 +99,7 @@ params = %{
   notes: ["Payment due within 30 days"]
 }
 
-{:ok, validated_params} = ExUBL.RequestParams.new(params)
+{:ok, validated_params} = ExCius.RequestParams.new(params)
 ```
 
 ## Supported Enums

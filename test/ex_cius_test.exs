@@ -1,6 +1,6 @@
-defmodule ExUBLTest do
+defmodule ExCiusTest do
   use ExUnit.Case
-  doctest ExUBL
+  doctest ExCius
 
   @valid_invoice_data %{
     id: "TEST-001",
@@ -91,7 +91,7 @@ defmodule ExUBLTest do
 
   describe "generate_invoice/1" do
     test "generates valid UBL XML from valid invoice data" do
-      {:ok, xml} = ExUBL.generate_invoice(@valid_invoice_data)
+      {:ok, xml} = ExCius.generate_invoice(@valid_invoice_data)
 
       assert is_binary(xml)
       assert String.starts_with?(xml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
@@ -115,7 +115,7 @@ defmodule ExUBLTest do
     end
 
     test "generates XML with optional fields when provided" do
-      {:ok, xml} = ExUBL.generate_invoice(@valid_invoice_with_optionals)
+      {:ok, xml} = ExCius.generate_invoice(@valid_invoice_with_optionals)
 
       assert String.contains?(xml, "<cbc:DueDate>2025-05-31</cbc:DueDate>")
       assert String.contains?(xml, "<cac:PaymentMeans>")
@@ -126,7 +126,7 @@ defmodule ExUBLTest do
     test "returns validation errors for invalid data" do
       invalid_data = %{id: "TEST", currency_code: "USD"}
 
-      {:error, errors} = ExUBL.generate_invoice(invalid_data)
+      {:error, errors} = ExCius.generate_invoice(invalid_data)
 
       assert is_map(errors)
       assert Map.has_key?(errors, :operator_name)
@@ -135,7 +135,7 @@ defmodule ExUBLTest do
     end
 
     test "returns validation errors for empty data" do
-      {:error, errors} = ExUBL.generate_invoice(%{})
+      {:error, errors} = ExCius.generate_invoice(%{})
 
       assert is_map(errors)
       assert Map.has_key?(errors, :id)
@@ -144,9 +144,9 @@ defmodule ExUBLTest do
     end
 
     test "returns error for non-map input" do
-      assert {:error, %{input: "must be a map"}} = ExUBL.generate_invoice("not a map")
-      assert {:error, %{input: "must be a map"}} = ExUBL.generate_invoice(123)
-      assert {:error, %{input: "must be a map"}} = ExUBL.generate_invoice(nil)
+      assert {:error, %{input: "must be a map"}} = ExCius.generate_invoice("not a map")
+      assert {:error, %{input: "must be a map"}} = ExCius.generate_invoice(123)
+      assert {:error, %{input: "must be a map"}} = ExCius.generate_invoice(nil)
     end
 
     test "handles complex invoice with multiple lines and tax rates" do
@@ -184,7 +184,7 @@ defmodule ExUBLTest do
           }
         ])
 
-      {:ok, xml} = ExUBL.generate_invoice(complex_invoice)
+      {:ok, xml} = ExCius.generate_invoice(complex_invoice)
 
       # Should contain both lines
       # 1 + 2 lines
@@ -196,21 +196,21 @@ defmodule ExUBLTest do
 
   describe "parse_invoice/1" do
     test "returns error for non-string input" do
-      assert {:error, "Input must be an XML string"} = ExUBL.parse_invoice(123)
-      assert {:error, "Input must be an XML string"} = ExUBL.parse_invoice(%{})
-      assert {:error, "Input must be an XML string"} = ExUBL.parse_invoice(nil)
+      assert {:error, "Input must be an XML string"} = ExCius.parse_invoice(123)
+      assert {:error, "Input must be an XML string"} = ExCius.parse_invoice(%{})
+      assert {:error, "Input must be an XML string"} = ExCius.parse_invoice(nil)
     end
 
     test "returns error for invalid XML" do
       invalid_xml = "this is not xml"
-      {:error, reason} = ExUBL.parse_invoice(invalid_xml)
+      {:error, reason} = ExCius.parse_invoice(invalid_xml)
       assert is_binary(reason)
       assert String.contains?(reason, "XML parsing failed")
     end
 
     test "returns error for malformed XML" do
       malformed_xml = "<?xml version=\"1.0\"?><Invoice><cbc:ID>123</Invoice>"
-      {:error, reason} = ExUBL.parse_invoice(malformed_xml)
+      {:error, reason} = ExCius.parse_invoice(malformed_xml)
       assert is_binary(reason)
     end
 
@@ -218,8 +218,8 @@ defmodule ExUBLTest do
     # Uncommenting to see the actual errors
 
     test "parses valid UBL XML back to invoice data" do
-      {:ok, xml} = ExUBL.generate_invoice(@valid_invoice_data)
-      {:ok, parsed_data} = ExUBL.parse_invoice(xml)
+      {:ok, xml} = ExCius.generate_invoice(@valid_invoice_data)
+      {:ok, parsed_data} = ExCius.parse_invoice(xml)
 
       assert parsed_data.id == "TEST-001"
       assert parsed_data.operator_name == "Test Operator"
@@ -229,8 +229,8 @@ defmodule ExUBLTest do
     end
 
     test "preserves optional fields during parsing" do
-      {:ok, xml} = ExUBL.generate_invoice(@valid_invoice_with_optionals)
-      {:ok, parsed_data} = ExUBL.parse_invoice(xml)
+      {:ok, xml} = ExCius.generate_invoice(@valid_invoice_with_optionals)
+      {:ok, parsed_data} = ExCius.parse_invoice(xml)
 
       assert parsed_data.due_date == "2025-05-31"
       assert parsed_data.payment_method.payment_means_code == "30"
@@ -241,7 +241,7 @@ defmodule ExUBLTest do
 
   describe "validate_invoice/1" do
     test "validates correct invoice data successfully" do
-      {:ok, validated_data} = ExUBL.validate_invoice(@valid_invoice_data)
+      {:ok, validated_data} = ExCius.validate_invoice(@valid_invoice_data)
 
       assert validated_data.id == "TEST-001"
       assert validated_data.operator_name == "Test Operator"
@@ -251,7 +251,7 @@ defmodule ExUBLTest do
     end
 
     test "validates invoice with optional fields" do
-      {:ok, validated_data} = ExUBL.validate_invoice(@valid_invoice_with_optionals)
+      {:ok, validated_data} = ExCius.validate_invoice(@valid_invoice_with_optionals)
 
       assert validated_data.due_date == "2025-05-31"
       assert validated_data.payment_method.payment_means_code == "30"
@@ -264,7 +264,7 @@ defmodule ExUBLTest do
         currency_code: "EUR"
       }
 
-      {:error, errors} = ExUBL.validate_invoice(incomplete_data)
+      {:error, errors} = ExCius.validate_invoice(incomplete_data)
 
       assert is_map(errors)
       assert Map.has_key?(errors, :issue_datetime)
@@ -280,7 +280,7 @@ defmodule ExUBLTest do
           party_tax_scheme: %{}
         })
 
-      {:error, errors} = ExUBL.validate_invoice(invalid_supplier)
+      {:error, errors} = ExCius.validate_invoice(invalid_supplier)
 
       assert Map.has_key?(errors, :supplier)
     end
@@ -292,7 +292,7 @@ defmodule ExUBLTest do
           tax_subtotals: []
         })
 
-      {:error, errors} = ExUBL.validate_invoice(invalid_tax)
+      {:error, errors} = ExCius.validate_invoice(invalid_tax)
 
       assert Map.has_key?(errors, :tax_total)
     end
@@ -309,28 +309,28 @@ defmodule ExUBLTest do
           }
         ])
 
-      {:error, errors} = ExUBL.validate_invoice(invalid_lines)
+      {:error, errors} = ExCius.validate_invoice(invalid_lines)
 
       assert Map.has_key?(errors, :invoice_lines)
     end
 
     test "returns error for non-map input" do
-      assert {:error, %{input: "must be a map"}} = ExUBL.validate_invoice("string")
-      assert {:error, %{input: "must be a map"}} = ExUBL.validate_invoice(123)
-      assert {:error, %{input: "must be a map"}} = ExUBL.validate_invoice(nil)
+      assert {:error, %{input: "must be a map"}} = ExCius.validate_invoice("string")
+      assert {:error, %{input: "must be a map"}} = ExCius.validate_invoice(123)
+      assert {:error, %{input: "must be a map"}} = ExCius.validate_invoice(nil)
     end
   end
 
   describe "round_trip_test/1" do
     test "returns error for non-map input" do
-      assert {:error, "Input must be a map"} = ExUBL.round_trip_test("string")
-      assert {:error, "Input must be a map"} = ExUBL.round_trip_test(123)
-      assert {:error, "Input must be a map"} = ExUBL.round_trip_test(nil)
+      assert {:error, "Input must be a map"} = ExCius.round_trip_test("string")
+      assert {:error, "Input must be a map"} = ExCius.round_trip_test(123)
+      assert {:error, "Input must be a map"} = ExCius.round_trip_test(nil)
     end
 
     test "returns validation error for invalid input" do
       invalid_data = %{id: "test"}
-      {:error, errors} = ExUBL.round_trip_test(invalid_data)
+      {:error, errors} = ExCius.round_trip_test(invalid_data)
 
       assert is_map(errors)
       assert Map.has_key?(errors, :operator_name)
@@ -340,7 +340,7 @@ defmodule ExUBLTest do
     # Uncommenting to see the actual errors
 
     test "successfully performs round-trip with valid data" do
-      {:ok, {xml, parsed_data}} = ExUBL.round_trip_test(@valid_invoice_data)
+      {:ok, {xml, parsed_data}} = ExCius.round_trip_test(@valid_invoice_data)
 
       assert is_binary(xml)
       assert String.contains?(xml, "TEST-001")
@@ -351,7 +351,7 @@ defmodule ExUBLTest do
     end
 
     test "preserves data integrity through round-trip" do
-      {:ok, {_xml, parsed_data}} = ExUBL.round_trip_test(@valid_invoice_with_optionals)
+      {:ok, {_xml, parsed_data}} = ExCius.round_trip_test(@valid_invoice_with_optionals)
 
       assert parsed_data.due_date == "2025-05-31"
       assert parsed_data.payment_method.payment_means_code == "30"
@@ -361,7 +361,7 @@ defmodule ExUBLTest do
 
   describe "version/0" do
     test "returns version string" do
-      version = ExUBL.version()
+      version = ExCius.version()
       assert is_binary(version)
       assert version =~ ~r/\d+\.\d+\.\d+/ or version == "unknown"
     end
@@ -369,7 +369,7 @@ defmodule ExUBLTest do
 
   describe "info/0" do
     test "returns library information" do
-      info = ExUBL.info()
+      info = ExCius.info()
 
       assert is_map(info)
       assert info.ubl_version == "2.1"
@@ -386,7 +386,7 @@ defmodule ExUBLTest do
     end
 
     test "info contains valid version" do
-      info = ExUBL.info()
+      info = ExCius.info()
       assert is_binary(info.library_version)
     end
   end
@@ -394,10 +394,10 @@ defmodule ExUBLTest do
   describe "integration tests" do
     test "generate_invoice and validate_invoice work together" do
       # First validate
-      {:ok, validated_data} = ExUBL.validate_invoice(@valid_invoice_data)
+      {:ok, validated_data} = ExCius.validate_invoice(@valid_invoice_data)
 
       # Then generate - should work since data is valid
-      {:ok, xml} = ExUBL.generate_invoice(@valid_invoice_data)
+      {:ok, xml} = ExCius.generate_invoice(@valid_invoice_data)
 
       assert String.contains?(xml, validated_data.id)
       assert String.contains?(xml, validated_data.operator_name)
@@ -412,7 +412,7 @@ defmodule ExUBLTest do
 
       Enum.each(datetime_variants, fn datetime ->
         data = Map.put(@valid_invoice_data, :issue_datetime, datetime)
-        {:ok, xml} = ExUBL.generate_invoice(data)
+        {:ok, xml} = ExCius.generate_invoice(data)
         assert String.contains?(xml, "<cbc:IssueDate>2025-05-01</cbc:IssueDate>")
         # Time might vary based on timezone parsing, just check time element exists
         assert String.contains?(xml, "<cbc:IssueTime>")
@@ -430,7 +430,7 @@ defmodule ExUBLTest do
         |> put_in([:legal_monetary_total, :payable_amount], "113.00")
         |> put_in([:invoice_lines, Access.at(0), :item, :classified_tax_category, :percent], 13)
 
-      {:ok, xml} = ExUBL.generate_invoice(reduced_vat_data)
+      {:ok, xml} = ExCius.generate_invoice(reduced_vat_data)
       assert String.contains?(xml, "<cbc:Percent>13</cbc:Percent>")
       assert String.contains?(xml, "<cbc:TaxAmount currencyID=\"EUR\">13.00</cbc:TaxAmount>")
     end

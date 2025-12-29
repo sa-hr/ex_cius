@@ -1,4 +1,4 @@
-defmodule ExUBL.Enums.BusinessProcess do
+defmodule ExCius.Enums.BusinessProcess do
   @moduledoc """
   Supported business process (profile) IDs for UBL invoices.
   """

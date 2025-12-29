@@ -1,4 +1,4 @@
-defmodule ExUBL.Enums.InvoiceTypeCode do
+defmodule ExCius.Enums.InvoiceTypeCode do
   @moduledoc """
   Supported invoice type codes for UBL invoices (UNTDID 1001).
   """

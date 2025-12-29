@@ -1,7 +1,7 @@
-defmodule ExUBL.InvoiceXmlParserTest do
+defmodule ExCius.InvoiceXmlParserTest do
   use ExUnit.Case
 
-  alias ExUBL.{InvoiceXmlParserFixed, InvoiceTemplateXML, RequestParams}
+  alias ExCius.{InvoiceXmlParserFixed, InvoiceTemplateXML, RequestParams}
 
   describe "parse/1" do
     test "parses complete UBL Invoice XML with all fields" do

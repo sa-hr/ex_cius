@@ -1,4 +1,4 @@
-defmodule ExUBL.Enums.TaxScheme do
+defmodule ExCius.Enums.TaxScheme do
   @moduledoc """
   Supported tax scheme IDs for UBL invoices.
   """

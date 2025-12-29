@@ -1,4 +1,4 @@
-defmodule ExUBL.InvoiceXmlParserFixed do
+defmodule ExCius.InvoiceXmlParserFixed do
   @moduledoc """
   Fixed version of the InvoiceXmlParser that uses local-name() xpath approach
   to avoid namespace issues with SweetXML.
@@ -26,7 +26,7 @@ defmodule ExUBL.InvoiceXmlParserFixed do
   ## Examples
 
       iex> xml = "<?xml version=\\"1.0\\"?>..."
-      iex> {:ok, data} = ExUBL.InvoiceXmlParserFixed.parse(xml)
+      iex> {:ok, data} = ExCius.InvoiceXmlParserFixed.parse(xml)
       iex> data.id
       "INV-001"
 

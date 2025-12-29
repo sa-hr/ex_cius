@@ -3,15 +3,15 @@
 # Complete Invoice Generation Example
 #
 # This example demonstrates the complete workflow of creating a UBL 2.1 Invoice XML
-# from raw input data using the ExUBL library.
+# from raw input data using the ExCius library.
 
 Mix.install([
-  {:ex_ubl, path: ".."}
+  {:ex_cius, path: ".."}
 ])
 
-alias ExUBL.{InvoiceTemplateXML, RequestParams}
+alias ExCius.{InvoiceTemplateXML, RequestParams}
 
-# Sample invoice data that matches the structure expected by ExUBL.RequestParams
+# Sample invoice data that matches the structure expected by ExCius.RequestParams
 invoice_data = %{
   # Required invoice identification
   id: "5-P1-1",
@@ -144,7 +144,7 @@ invoice_data = %{
 }
 
 IO.puts(String.duplicate("=", 80))
-IO.puts("ExUBL Complete Invoice Generation Example")
+IO.puts("ExCius Complete Invoice Generation Example")
 IO.puts(String.duplicate("=", 80))
 IO.puts("")
 

@@ -1,7 +1,7 @@
-defmodule ExUBL.InvoiceTemplateXML do
+defmodule ExCius.InvoiceTemplateXML do
   import XmlBuilder
 
-  alias ExUBL.Enums.{
+  alias ExCius.Enums.{
     BusinessProcess,
     InvoiceTypeCode,
     TaxCategory,
@@ -12,7 +12,7 @@ defmodule ExUBL.InvoiceTemplateXML do
   @moduledoc """
   Generates UBL 2.1 Invoice XML documents from validated request parameters.
 
-  This module takes validated parameters from `ExUBL.RequestParams` and transforms
+  This module takes validated parameters from `ExCius.RequestParams` and transforms
   them into a complete UBL 2.1 Invoice XML document that complies with the Croatian
   e-Invoice (CIUS-2025) specification.
 
@@ -41,10 +41,10 @@ defmodule ExUBL.InvoiceTemplateXML do
       }
 
       # Validate parameters
-      {:ok, validated_params} = ExUBL.RequestParams.new(params)
+      {:ok, validated_params} = ExCius.RequestParams.new(params)
 
       # Generate XML
-      xml = ExUBL.InvoiceTemplateXML.build_xml(validated_params)
+      xml = ExCius.InvoiceTemplateXML.build_xml(validated_params)
 
   The generated XML includes:
   - UBL Extensions for signatures
@@ -76,12 +76,12 @@ defmodule ExUBL.InvoiceTemplateXML do
   @doc """
   Generates UBL Invoice XML from validated request parameters.
 
-  Takes the output from ExUBL.RequestParams.new/1 and generates
+  Takes the output from ExCius.RequestParams.new/1 and generates
   a complete UBL 2.1 Invoice XML document as a string.
 
   ## Parameters
 
-  - `params` - Validated parameters map from ExUBL.RequestParams.new/1
+  - `params` - Validated parameters map from ExCius.RequestParams.new/1
 
   ## Returns
 
@@ -105,8 +105,8 @@ defmodule ExUBL.InvoiceTemplateXML do
       ...>   legal_monetary_total: %{...},
       ...>   invoice_lines: [...]
       ...> }
-      iex> {:ok, params} = ExUBL.RequestParams.new(invoice_data)
-      iex> xml = ExUBL.InvoiceTemplateXML.build_xml(params)
+      iex> {:ok, params} = ExCius.RequestParams.new(invoice_data)
+      iex> xml = ExCius.InvoiceTemplateXML.build_xml(params)
       iex> String.starts_with?(xml, "<?xml version=")
       true
       iex> String.contains?(xml, "<Invoice xmlns=")

@@ -1,7 +1,7 @@
-defmodule ExUBL.InvoiceTemplateXMLTest do
+defmodule ExCius.InvoiceTemplateXMLTest do
   use ExUnit.Case
 
-  alias ExUBL.{InvoiceTemplateXML, RequestParams}
+  alias ExCius.{InvoiceTemplateXML, RequestParams}
 
   describe "build_xml/1" do
     test "generates UBL Invoice XML from valid request params" do

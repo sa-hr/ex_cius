@@ -77,7 +77,7 @@ valid_invoice_data = %{
 IO.puts("=== Alternative Parsing Approaches ===")
 
 # Generate XML
-{:ok, xml} = ExUBL.generate_invoice(valid_invoice_data)
+{:ok, xml} = ExCius.generate_invoice(valid_invoice_data)
 IO.puts("Generated XML successfully")
 
 # Parse with SweetXML

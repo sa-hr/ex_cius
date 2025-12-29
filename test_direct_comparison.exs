@@ -78,36 +78,36 @@ IO.puts("=== Direct Comparison Test ===")
 
 # Step 1: Generate XML
 IO.puts("1. Generating XML...")
-{:ok, xml} = ExUBL.generate_invoice(valid_invoice_data)
+{:ok, xml} = ExCius.generate_invoice(valid_invoice_data)
 IO.puts("Generated XML successfully. Length: #{String.length(xml)} chars")
 
-# Step 2: Call ExUBL.parse_invoice directly
-IO.puts("\n2. Testing ExUBL.parse_invoice(xml)...")
+# Step 2: Call ExCius.parse_invoice directly
+IO.puts("\n2. Testing ExCius.parse_invoice(xml)...")
 
 try do
-  result = ExUBL.parse_invoice(xml)
+  result = ExCius.parse_invoice(xml)
 
   case result do
     {:ok, data} ->
-      IO.puts("✓ ExUBL.parse_invoice succeeded!")
+      IO.puts("✓ ExCius.parse_invoice succeeded!")
       IO.puts("Parsed ID: #{data.id}")
       IO.puts("Parsed operator: #{data.operator_name}")
 
     {:error, reason} ->
-      IO.puts("✗ ExUBL.parse_invoice failed:")
+      IO.puts("✗ ExCius.parse_invoice failed:")
       IO.puts("Error: #{reason}")
   end
 rescue
   e ->
-    IO.puts("✗ ExUBL.parse_invoice raised exception:")
+    IO.puts("✗ ExCius.parse_invoice raised exception:")
     IO.puts("Exception: #{Exception.message(e)}")
 end
 
 # Step 3: Call InvoiceXmlParser.parse directly
-IO.puts("\n3. Testing ExUBL.InvoiceXmlParser.parse(xml)...")
+IO.puts("\n3. Testing ExCius.InvoiceXmlParser.parse(xml)...")
 
 try do
-  result = ExUBL.InvoiceXmlParser.parse(xml)
+  result = ExCius.InvoiceXmlParser.parse(xml)
 
   case result do
     {:ok, data} ->
@@ -140,7 +140,7 @@ simple_xml = """
 """
 
 try do
-  result = ExUBL.InvoiceXmlParser.parse(simple_xml)
+  result = ExCius.InvoiceXmlParser.parse(simple_xml)
 
   case result do
     {:ok, data} ->
@@ -171,7 +171,7 @@ IO.puts("XML from file matches original: #{xml == xml_from_file}")
 
 # Test parsing the file content
 try do
-  result = ExUBL.InvoiceXmlParser.parse(xml_from_file)
+  result = ExCius.InvoiceXmlParser.parse(xml_from_file)
 
   case result do
     {:ok, data} ->

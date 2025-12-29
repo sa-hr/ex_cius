@@ -1,4 +1,4 @@
-defmodule ExUBL.RequestParams do
+defmodule ExCius.RequestParams do
   @moduledoc """
   Validates and formats input parameters for UBL 2.1 Invoice generation.
 
@@ -34,7 +34,7 @@ defmodule ExUBL.RequestParams do
   - `:party_tax_scheme` - Tax scheme map with `:company_id`, `:tax_scheme_id`
   """
 
-  alias ExUBL.Enums.{
+  alias ExCius.Enums.{
     BusinessProcess,
     Currency,
     InvoiceTypeCode,
@@ -166,7 +166,7 @@ defmodule ExUBL.RequestParams do
       ...>     }
       ...>   ]
       ...> }
-      iex> {:ok, result} = ExUBL.RequestParams.new(params)
+      iex> {:ok, result} = ExCius.RequestParams.new(params)
       iex> result.id
       "INV-001"
       iex> result.issue_date
@@ -174,7 +174,7 @@ defmodule ExUBL.RequestParams do
       iex> result.issue_time
       ~T[12:00:00]
 
-      iex> {:error, errors} = ExUBL.RequestParams.new(%{})
+      iex> {:error, errors} = ExCius.RequestParams.new(%{})
       iex> errors.id
       "is required"
 

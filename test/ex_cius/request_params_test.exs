@@ -1,9 +1,9 @@
-defmodule ExUBL.RequestParamsTest do
+defmodule ExCius.RequestParamsTest do
   use ExUnit.Case, async: true
 
-  alias ExUBL.RequestParams
+  alias ExCius.RequestParams
 
-  doctest ExUBL.RequestParams
+  doctest ExCius.RequestParams
 
   defp valid_params do
     %{

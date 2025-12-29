@@ -1,16 +1,16 @@
-defmodule ExUBL.MixProject do
+defmodule ExCius.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :ex_ubl,
+      app: :ex_cius,
       version: "0.0.1",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       description: description(),
       package: package(),
-      name: "ExUBL",
-      source_url: "https://github.com/sa-hr/ex_ubl",
+      name: "ExCius",
+      source_url: "https://github.com/sa-hr/ex_cius",
       deps: deps()
     ]
   end
@@ -33,14 +33,14 @@ defmodule ExUBL.MixProject do
   end
 
   defp description do
-    "Library for creating invoices under the UBL 2.1 standard"
+    "Library for creating invoices under the Croatian e-Invoice (CIUS) standard"
   end
 
   defp package do
     [
       files: ~w(lib .formatter.exs mix.exs README* LICENSE*),
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/sa-hr/ex_ubl"}
+      links: %{"GitHub" => "https://github.com/sa-hr/ex_cius"}
     ]
   end
 end

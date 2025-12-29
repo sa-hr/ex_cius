@@ -1,4 +1,4 @@
-defmodule ExUBL.Enums.TaxCategory do
+defmodule ExCius.Enums.TaxCategory do
   @moduledoc """
   Supported tax category IDs for UBL invoices (EN16931).
 
