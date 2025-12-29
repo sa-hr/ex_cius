@@ -8,8 +8,6 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       params = %{
         id: "5-P1-1",
         issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operater1",
-        operator_oib: "12345678901",
         currency_code: "EUR",
         due_date: "2025-05-31",
         supplier: %{
@@ -202,8 +200,6 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       params = %{
         id: "INV-003",
         issue_datetime: "2025-07-01T16:00:00",
-        operator_name: "Operater3",
-        operator_oib: "33333333333",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -217,6 +213,10 @@ defmodule ExCius.InvoiceTemplateXMLTest do
           party_tax_scheme: %{
             company_id: "HR12345678901",
             tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "33333333333",
+            name: "Operater3"
           }
         },
         customer: %{
@@ -285,7 +285,7 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       refute String.contains?(xml, "<cbc:DueDate>")
       refute String.contains?(xml, "<cac:PaymentMeans>")
       refute String.contains?(xml, "<cac:Contact>")
-      refute String.contains?(xml, "<cac:SellerContact>")
+      assert String.contains?(xml, "<cac:SellerContact>")
 
       # Should always contain mandatory operator notes (two separate notes)
       assert String.contains?(xml, "<cbc:Note>")
@@ -302,8 +302,6 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       params = %{
         id: "INV-002",
         issue_datetime: "2025-06-01T14:30:00",
-        operator_name: "Operater2",
-        operator_oib: "11111111119",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -317,6 +315,10 @@ defmodule ExCius.InvoiceTemplateXMLTest do
           party_tax_scheme: %{
             company_id: "HR12345678901",
             tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "11111111119",
+            name: "Operater2"
           }
         },
         customer: %{

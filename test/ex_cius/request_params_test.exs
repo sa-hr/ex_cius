@@ -9,8 +9,6 @@ defmodule ExCius.RequestParamsTest do
     %{
       id: "INV-001",
       issue_datetime: "2025-05-01T12:00:00",
-      operator_name: "Operator1",
-      operator_oib: "12345678901",
       currency_code: "EUR",
       supplier: %{
         oib: "12345678901",
@@ -24,6 +22,10 @@ defmodule ExCius.RequestParamsTest do
         party_tax_scheme: %{
           company_id: "HR12345678901",
           tax_scheme_id: "vat"
+        },
+        seller_contact: %{
+          id: "12345678901",
+          name: "Operator1"
         }
       },
       customer: %{
@@ -92,7 +94,7 @@ defmodule ExCius.RequestParamsTest do
       assert params.id == "INV-001"
       assert params.issue_date == ~D[2025-05-01]
       assert params.issue_time == ~T[12:00:00]
-      assert params.operator_name == "Operator1"
+      assert params.supplier.seller_contact.name == "Operator1"
     end
 
     test "parses ISO 8601 datetime with timezone" do
@@ -176,7 +178,6 @@ defmodule ExCius.RequestParamsTest do
       assert {:error, errors} = RequestParams.new(%{})
       assert errors.id == "is required"
       assert errors.issue_datetime == "is required"
-      assert errors.operator_name == "is required"
       assert errors.currency_code == "is required"
       assert errors.invoice_lines == "is required"
     end
@@ -189,10 +190,16 @@ defmodule ExCius.RequestParamsTest do
                "must be a valid ISO 8601 datetime (e.g., 2025-05-01T12:00:00)"
     end
 
-    test "returns error for empty operator_name" do
-      params = Map.put(valid_params(), :operator_name, "")
-      assert {:error, errors} = RequestParams.new(params)
-      assert errors.operator_name == "is required"
+    test "returns error for missing seller_contact" do
+      params = put_in(valid_params(), [:supplier, :seller_contact], nil)
+      assert {:error, %{supplier: errors}} = RequestParams.new(params)
+      assert errors.seller_contact == "is required"
+    end
+
+    test "returns error for invalid seller_contact id (operator OIB)" do
+      params = put_in(valid_params(), [:supplier, :seller_contact, :id], "invalid")
+      assert {:error, %{supplier: %{seller_contact: errors}}} = RequestParams.new(params)
+      assert errors.id == "must be an 11-digit OIB number"
     end
 
     test "returns error for invalid currency_code" do

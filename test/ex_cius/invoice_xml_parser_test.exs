@@ -9,8 +9,6 @@ defmodule ExCius.InvoiceXmlParserTest do
       original_params = %{
         id: "5-P1-1",
         issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operater1",
-        operator_oib: "12345678901",
         currency_code: "EUR",
         due_date: "2025-05-31",
         business_process: "billing",
@@ -119,9 +117,9 @@ defmodule ExCius.InvoiceXmlParserTest do
       # Verify basic invoice data
       assert parsed_params.id == "5-P1-1"
       assert parsed_params.issue_datetime == "2025-05-01T12:00:00"
-      assert parsed_params.operator_name == "Operater1"
-      assert parsed_params.operator_oib == "12345678901"
       assert parsed_params.currency_code == "EUR"
+      assert parsed_params.supplier.seller_contact.id == "51634872748"
+      assert parsed_params.supplier.seller_contact.name == "Operater1"
       assert parsed_params.due_date == "2025-05-31"
       assert parsed_params.business_process == "billing"
       assert parsed_params.invoice_type_code == "commercial_invoice"
@@ -223,8 +221,6 @@ defmodule ExCius.InvoiceXmlParserTest do
       original_params = %{
         id: "INV-001",
         issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operator1",
-        operator_oib: "12345678901",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -238,6 +234,10 @@ defmodule ExCius.InvoiceXmlParserTest do
           party_tax_scheme: %{
             company_id: "HR12345678901",
             tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
           }
         },
         customer: %{
@@ -308,7 +308,7 @@ defmodule ExCius.InvoiceXmlParserTest do
 
       # Verify basic data is present
       assert parsed_params.id == "INV-001"
-      assert parsed_params.operator_name == "Operator1"
+      assert parsed_params.supplier.seller_contact.name == "Operator1"
       assert parsed_params.currency_code == "EUR"
 
       # Verify optional fields are not present
@@ -316,7 +316,6 @@ defmodule ExCius.InvoiceXmlParserTest do
       refute Map.has_key?(parsed_params, :payment_method)
       refute Map.has_key?(parsed_params, :notes)
       refute Map.has_key?(parsed_params.supplier, :contact)
-      refute Map.has_key?(parsed_params.supplier, :seller_contact)
       refute Map.has_key?(parsed_params.customer, :contact)
 
       refute Map.has_key?(parsed_params.invoice_lines |> hd() |> Map.get(:price), :base_quantity)
@@ -326,8 +325,6 @@ defmodule ExCius.InvoiceXmlParserTest do
       original_params = %{
         id: "INV-002",
         issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operator1",
-        operator_oib: "12345678901",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -341,6 +338,10 @@ defmodule ExCius.InvoiceXmlParserTest do
           party_tax_scheme: %{
             company_id: "HR12345678901",
             tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
           }
         },
         customer: %{
@@ -449,8 +450,6 @@ defmodule ExCius.InvoiceXmlParserTest do
       original_params = %{
         id: "INV-003",
         issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operator1",
-        operator_oib: "12345678901",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -464,6 +463,10 @@ defmodule ExCius.InvoiceXmlParserTest do
           party_tax_scheme: %{
             company_id: "HR12345678901",
             tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
           }
         },
         customer: %{
@@ -548,8 +551,6 @@ defmodule ExCius.InvoiceXmlParserTest do
       original_params = %{
         id: "ROUND-TRIP-001",
         issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Round Trip Test",
-        operator_oib: "12345678901",
         currency_code: "EUR",
         due_date: "2025-12-31",
         supplier: %{
@@ -564,6 +565,10 @@ defmodule ExCius.InvoiceXmlParserTest do
           party_tax_scheme: %{
             company_id: "HR98765432109",
             tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Round Trip Test"
           }
         },
         customer: %{
@@ -641,7 +646,10 @@ defmodule ExCius.InvoiceXmlParserTest do
 
       # Key data should be identical after round-trip
       assert parsed_params1.id == parsed_params2.id
-      assert parsed_params1.operator_name == parsed_params2.operator_name
+
+      assert parsed_params1.supplier.seller_contact.name ==
+               parsed_params2.supplier.seller_contact.name
+
       assert parsed_params1.currency_code == parsed_params2.currency_code
       assert parsed_params1.supplier.oib == parsed_params2.supplier.oib
 
@@ -700,10 +708,9 @@ defmodule ExCius.InvoiceXmlParserTest do
       assert line.quantity == 1.0
       assert line.item.name == "Proizvod"
 
-      # Note: The example XML doesn't have operator notes, so operator_name will be nil
-      # The operator name is extracted from the operator note in the XML
-      # If not found as a note, it won't be present in parsed params
-      assert !Map.has_key?(parsed_params, :operator_name) || is_nil(parsed_params.operator_name)
+      # Operator info comes from seller_contact in the XML
+      assert parsed_params.supplier.seller_contact.id == "51634872748"
+      assert parsed_params.supplier.seller_contact.name == "Operater1"
     end
   end
 end

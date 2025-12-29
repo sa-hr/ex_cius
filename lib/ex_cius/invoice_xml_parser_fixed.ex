@@ -50,8 +50,6 @@ defmodule ExCius.InvoiceXmlParserFixed do
       id: extract_id(doc),
       issue_datetime: extract_issue_datetime(doc),
       due_date: extract_due_date(doc),
-      operator_name: extract_operator_name(doc),
-      operator_oib: extract_operator_oib(doc),
       currency_code: extract_currency_code(doc),
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
@@ -86,38 +84,6 @@ defmodule ExCius.InvoiceXmlParserFixed do
     case doc |> xpath(~x"//*[local-name()='DueDate']/text()"s) do
       "" -> nil
       date -> date
-    end
-  end
-
-  defp extract_operator_name(doc) do
-    # Extract from mandatory operator note: "Operater: [name]"
-    notes = doc |> xpath(~x"//*[local-name()='Note']/text()"ls)
-
-    operator_note =
-      Enum.find(notes, fn note ->
-        is_binary(note) && String.starts_with?(note, "Operater: ")
-      end)
-
-    case operator_note do
-      nil -> nil
-      note when is_binary(note) -> String.replace_prefix(note, "Operater: ", "")
-      _ -> nil
-    end
-  end
-
-  defp extract_operator_oib(doc) do
-    # Extract from mandatory operator OIB note: "OIB operatera: [oib]"
-    notes = doc |> xpath(~x"//*[local-name()='Note']/text()"ls)
-
-    oib_note =
-      Enum.find(notes, fn note ->
-        is_binary(note) && String.starts_with?(note, "OIB operatera: ")
-      end)
-
-    case oib_note do
-      nil -> nil
-      note when is_binary(note) -> String.replace_prefix(note, "OIB operatera: ", "")
-      _ -> nil
     end
   end
 
@@ -429,7 +395,7 @@ defmodule ExCius.InvoiceXmlParserFixed do
   defp extract_user_notes(doc) do
     notes = doc |> xpath(~x"//*[local-name()='Note']/text()"ls)
 
-    # Filter out mandatory Croatian operator notes
+    # Filter out mandatory Croatian operator notes (generated from seller_contact)
     user_notes =
       Enum.reject(notes, fn note ->
         is_binary(note) &&

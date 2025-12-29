@@ -5,8 +5,6 @@ defmodule ExCiusTest do
   @valid_invoice_data %{
     id: "TEST-001",
     issue_datetime: "2025-05-01T12:00:00",
-    operator_name: "Test Operator",
-    operator_oib: "12345678901",
     currency_code: "EUR",
     supplier: %{
       oib: "12345678901",
@@ -20,6 +18,10 @@ defmodule ExCiusTest do
       party_tax_scheme: %{
         company_id: "HR12345678901",
         tax_scheme_id: "vat"
+      },
+      seller_contact: %{
+        id: "12345678901",
+        name: "Test Operator"
       }
     },
     customer: %{
@@ -134,7 +136,6 @@ defmodule ExCiusTest do
       {:error, errors} = ExCius.generate_invoice(invalid_data)
 
       assert is_map(errors)
-      assert Map.has_key?(errors, :operator_name)
       assert Map.has_key?(errors, :issue_datetime)
       assert Map.has_key?(errors, :invoice_lines)
     end
@@ -145,7 +146,7 @@ defmodule ExCiusTest do
       assert is_map(errors)
       assert Map.has_key?(errors, :id)
       assert Map.has_key?(errors, :issue_datetime)
-      assert Map.has_key?(errors, :operator_name)
+      assert Map.has_key?(errors, :invoice_lines)
     end
 
     test "returns error for non-map input" do
@@ -235,7 +236,7 @@ defmodule ExCiusTest do
       {:ok, parsed_data} = ExCius.parse_invoice(xml)
 
       assert parsed_data.id == "TEST-001"
-      assert parsed_data.operator_name == "Test Operator"
+      assert parsed_data.supplier.seller_contact.name == "Test Operator"
       assert parsed_data.currency_code == "EUR"
       assert parsed_data.supplier.registration_name == "Test Supplier Ltd"
       assert parsed_data.customer.registration_name == "Test Customer Ltd"
@@ -257,7 +258,7 @@ defmodule ExCiusTest do
       {:ok, validated_data} = ExCius.validate_invoice(@valid_invoice_data)
 
       assert validated_data.id == "TEST-001"
-      assert validated_data.operator_name == "Test Operator"
+      assert validated_data.supplier.seller_contact.name == "Test Operator"
       assert validated_data.currency_code == "EUR"
       assert %Date{} = validated_data.issue_date
       assert %Time{} = validated_data.issue_time
@@ -281,7 +282,7 @@ defmodule ExCiusTest do
 
       assert is_map(errors)
       assert Map.has_key?(errors, :issue_datetime)
-      assert Map.has_key?(errors, :operator_name)
+      assert Map.has_key?(errors, :invoice_lines)
     end
 
     test "validates supplier and customer data" do
@@ -342,11 +343,12 @@ defmodule ExCiusTest do
     end
 
     test "returns validation error for invalid input" do
-      invalid_data = %{id: "test"}
+      invalid_data = %{id: "TEST"}
       {:error, errors} = ExCius.round_trip_test(invalid_data)
 
       assert is_map(errors)
-      assert Map.has_key?(errors, :operator_name)
+      assert Map.has_key?(errors, :issue_datetime)
+      assert Map.has_key?(errors, :invoice_lines)
     end
 
     # Note: These tests were commented out due to the SweetXML parsing issue
@@ -356,10 +358,9 @@ defmodule ExCiusTest do
       {:ok, {xml, parsed_data}} = ExCius.round_trip_test(@valid_invoice_data)
 
       assert is_binary(xml)
-      assert String.contains?(xml, "TEST-001")
-
+      assert String.contains?(xml, "<?xml version")
       assert parsed_data.id == "TEST-001"
-      assert parsed_data.operator_name == "Test Operator"
+      assert parsed_data.supplier.seller_contact.name == "Test Operator"
       assert parsed_data.currency_code == "EUR"
     end
 
@@ -413,7 +414,7 @@ defmodule ExCiusTest do
       {:ok, xml} = ExCius.generate_invoice(@valid_invoice_data)
 
       assert String.contains?(xml, validated_data.id)
-      assert String.contains?(xml, validated_data.operator_name)
+      assert String.contains?(xml, validated_data.supplier.seller_contact.name)
     end
 
     test "handles various datetime formats" do

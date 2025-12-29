@@ -9,8 +9,6 @@ defmodule ExCius.RequestParams do
 
   - `:id` - Invoice identifier (string)
   - `:issue_datetime` - Date and time of issue (ISO 8601 string, DateTime, or NaiveDateTime)
-  - `:operator_name` - Name of the operator issuing the invoice (string)
-  - `:operator_oib` - OIB (tax identification number) of the operator (11-digit string)
   - `:currency_code` - Document currency, only "EUR" supported (string)
   - `:supplier` - Supplier party information (map)
   - `:customer` - Customer party information (map)
@@ -26,9 +24,20 @@ defmodule ExCius.RequestParams do
   - `:payment_method` - Payment information (map)
   - `:notes` - List of free-form notes (list of strings)
 
-  ## Supplier/Customer Structure
+  ## Supplier Structure
 
-  Both supplier and customer require:
+  Supplier requires:
+  - `:oib` - Croatian OIB (11-digit string)
+  - `:registration_name` - Legal name (string)
+  - `:postal_address` - Address map with `:street_name`, `:city_name`, `:postal_zone`, `:country_code`
+  - `:party_tax_scheme` - Tax scheme map with `:company_id`, `:tax_scheme_id`
+  - `:seller_contact` - Operator information (required for Croatian CIUS compliance):
+    - `:id` - Operator's OIB (HR-BT-5)
+    - `:name` - Operator's name (HR-BT-4)
+
+  ## Customer Structure
+
+  Customer requires:
   - `:oib` - Croatian OIB (11-digit string)
   - `:registration_name` - Legal name (string)
   - `:postal_address` - Address map with `:street_name`, `:city_name`, `:postal_zone`, `:country_code`
@@ -47,8 +56,6 @@ defmodule ExCius.RequestParams do
   @required_fields [
     :id,
     :issue_datetime,
-    :operator_name,
-    :operator_oib,
     :currency_code,
     :supplier,
     :customer,
@@ -61,7 +68,13 @@ defmodule ExCius.RequestParams do
     :oib,
     :registration_name,
     :postal_address,
-    :party_tax_scheme
+    :party_tax_scheme,
+    :seller_contact
+  ]
+
+  @required_seller_contact_fields [
+    :id,
+    :name
   ]
 
   @required_customer_fields [
@@ -108,8 +121,6 @@ defmodule ExCius.RequestParams do
       iex> params = %{
       ...>   id: "INV-001",
       ...>   issue_datetime: "2025-05-01T12:00:00",
-      ...>   operator_name: "Operator1",
-      ...>   operator_oib: "12345678901",
       ...>   currency_code: "EUR",
       ...>   supplier: %{
       ...>     oib: "12345678901",
@@ -123,6 +134,10 @@ defmodule ExCius.RequestParams do
       ...>     party_tax_scheme: %{
       ...>       company_id: "HR12345678901",
       ...>       tax_scheme_id: "vat"
+      ...>     },
+      ...>     seller_contact: %{
+      ...>       id: "12345678901",
+      ...>       name: "Operator1"
       ...>     }
       ...>   },
       ...>   customer: %{
@@ -362,8 +377,6 @@ defmodule ExCius.RequestParams do
       %{}
       |> add_error(:id, validate_id(params.id))
       |> add_error(:issue_datetime, validate_issue_datetime(params))
-      |> add_error(:operator_name, validate_operator_name(params.operator_name))
-      |> add_error(:operator_oib, validate_oib(params.operator_oib))
       |> add_error(:due_date, validate_optional_date(params[:due_date]))
       |> add_error(:currency_code, validate_currency_code(params.currency_code))
       |> add_error(:invoice_type_code, validate_invoice_type_code(params[:invoice_type_code]))
@@ -399,9 +412,6 @@ defmodule ExCius.RequestParams do
 
   defp validate_issue_datetime(_),
     do: {:error, "must be a valid ISO 8601 datetime (e.g., 2025-05-01T12:00:00)"}
-
-  defp validate_operator_name(value) when is_binary(value) and byte_size(value) > 0, do: :ok
-  defp validate_operator_name(_), do: {:error, "must be a non-empty string"}
 
   defp validate_currency_code(value) when is_binary(value) do
     if Currency.valid?(value) do
@@ -463,7 +473,7 @@ defmodule ExCius.RequestParams do
           |> add_error(:contact, validate_optional_contact(supplier[:contact]))
           |> add_error(
             :seller_contact,
-            validate_optional_seller_contact(supplier[:seller_contact])
+            validate_required_seller_contact(supplier.seller_contact)
           )
 
         if Enum.empty?(errors) do
@@ -626,18 +636,29 @@ defmodule ExCius.RequestParams do
 
   defp validate_optional_contact(_), do: {:error, "must be a map"}
 
-  defp validate_optional_seller_contact(nil), do: :ok
+  defp validate_required_seller_contact(seller_contact) when is_map(seller_contact) do
+    missing_fields =
+      Enum.filter(@required_seller_contact_fields, fn field ->
+        value = seller_contact[field]
+        is_nil(value) || value == ""
+      end)
 
-  defp validate_optional_seller_contact(seller_contact) when is_map(seller_contact) do
-    errors =
-      %{}
-      |> add_error(:id, validate_optional_non_empty_string(seller_contact[:id]))
-      |> add_error(:name, validate_optional_non_empty_string(seller_contact[:name]))
+    case missing_fields do
+      [] ->
+        errors =
+          %{}
+          |> add_error(:id, validate_oib(seller_contact.id))
+          |> add_error(:name, validate_non_empty_string_required(seller_contact.name))
 
-    if Enum.empty?(errors), do: :ok, else: {:error, errors}
+        if Enum.empty?(errors), do: :ok, else: {:error, errors}
+
+      fields ->
+        {:error, missing_field_errors(fields)}
+    end
   end
 
-  defp validate_optional_seller_contact(_), do: {:error, "must be a map"}
+  defp validate_required_seller_contact(_),
+    do: {:error, "must be a map with id (operator OIB) and name (operator name)"}
 
   defp validate_optional_non_empty_string(nil), do: :ok
 

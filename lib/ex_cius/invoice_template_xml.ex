@@ -31,10 +31,17 @@ defmodule ExCius.InvoiceTemplateXML do
       params = %{
         id: "INV-001",
         issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operator1",
-        operator_oib: "12345678901",
         currency_code: "EUR",
-        supplier: %{...},
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "Company d.o.o.",
+          postal_address: %{...},
+          party_tax_scheme: %{...},
+          seller_contact: %{
+            id: "12345678901",    # Operator's OIB (HR-BT-5)
+            name: "Operator1"     # Operator's name (HR-BT-4)
+          }
+        },
         customer: %{...},
         tax_total: %{...},
         legal_monetary_total: %{...},
@@ -93,14 +100,13 @@ defmodule ExCius.InvoiceTemplateXML do
       iex> invoice_data = %{
       ...>   id: "5-P1-1",
       ...>   issue_datetime: "2025-05-01T12:00:00",
-      ...>   operator_name: "Operator1",
-      ...>   operator_oib: "12345678901",
       ...>   currency_code: "EUR",
       ...>   supplier: %{
       ...>     oib: "12345678901",
       ...>     registration_name: "Test Supplier",
       ...>     postal_address: %{...},
-      ...>     party_tax_scheme: %{...}
+      ...>     party_tax_scheme: %{...},
+      ...>     seller_contact: %{id: "12345678901", name: "Operator1"}
       ...>   },
       ...>   customer: %{...},
       ...>   tax_total: %{...},
@@ -252,10 +258,11 @@ defmodule ExCius.InvoiceTemplateXML do
   defp build_operator_note(params) do
     issue_datetime = DateTime.new!(params.issue_date, params.issue_time)
     formatted_datetime = format_croatian_datetime(issue_datetime)
+    seller_contact = params.supplier.seller_contact
 
     [
-      element("cbc:Note", "Operater: #{params.operator_name}"),
-      element("cbc:Note", "OIB operatera: #{params.operator_oib}"),
+      element("cbc:Note", "Operater: #{seller_contact.name}"),
+      element("cbc:Note", "OIB operatera: #{seller_contact.id}"),
       element("cbc:Note", "Vrijeme izdavanja: #{formatted_datetime}")
     ]
   end

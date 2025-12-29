@@ -27,8 +27,6 @@ end
 params = %{
   id: "INV-001",
   issue_datetime: "2025-05-01T12:00:00",
-  operator_name: "Operator1",
-  operator_oib: "12345678901",
   currency_code: "EUR",
   supplier: %{
     oib: "12345678901",
@@ -42,6 +40,10 @@ params = %{
     party_tax_scheme: %{
       company_id: "HR12345678901",
       tax_scheme_id: "vat"
+    },
+    seller_contact: %{
+      id: "12345678901",       # Operator's OIB (HR-BT-5)
+      name: "Operator1"        # Operator's name (HR-BT-4)
     }
   },
   customer: %{
