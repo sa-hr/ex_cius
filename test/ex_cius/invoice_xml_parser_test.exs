@@ -10,6 +10,7 @@ defmodule ExCius.InvoiceXmlParserTest do
         id: "5-P1-1",
         issue_datetime: "2025-05-01T12:00:00",
         operator_name: "Operater1",
+        operator_oib: "12345678901",
         currency_code: "EUR",
         due_date: "2025-05-31",
         business_process: "billing",
@@ -85,7 +86,8 @@ defmodule ExCius.InvoiceXmlParserTest do
             item: %{
               name: "Proizvod",
               commodity_classification: %{
-                item_classification_code: "62.90.90"
+                item_classification_code: "62.90.90",
+                list_id: "CG"
               },
               classified_tax_category: %{
                 id: "standard_rate",
@@ -118,6 +120,7 @@ defmodule ExCius.InvoiceXmlParserTest do
       assert parsed_params.id == "5-P1-1"
       assert parsed_params.issue_datetime == "2025-05-01T12:00:00"
       assert parsed_params.operator_name == "Operater1"
+      assert parsed_params.operator_oib == "12345678901"
       assert parsed_params.currency_code == "EUR"
       assert parsed_params.due_date == "2025-05-31"
       assert parsed_params.business_process == "billing"
@@ -221,6 +224,7 @@ defmodule ExCius.InvoiceXmlParserTest do
         id: "INV-001",
         issue_datetime: "2025-05-01T12:00:00",
         operator_name: "Operator1",
+        operator_oib: "12345678901",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -282,6 +286,10 @@ defmodule ExCius.InvoiceXmlParserTest do
                 id: "standard_rate",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "82990000",
+                list_id: "CG"
               }
             },
             price: %{
@@ -311,11 +319,6 @@ defmodule ExCius.InvoiceXmlParserTest do
       refute Map.has_key?(parsed_params.supplier, :seller_contact)
       refute Map.has_key?(parsed_params.customer, :contact)
 
-      refute Map.has_key?(
-               parsed_params.invoice_lines |> hd() |> Map.get(:item),
-               :commodity_classification
-             )
-
       refute Map.has_key?(parsed_params.invoice_lines |> hd() |> Map.get(:price), :base_quantity)
     end
 
@@ -324,6 +327,7 @@ defmodule ExCius.InvoiceXmlParserTest do
         id: "INV-002",
         issue_datetime: "2025-05-01T12:00:00",
         operator_name: "Operator1",
+        operator_oib: "12345678901",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -385,6 +389,10 @@ defmodule ExCius.InvoiceXmlParserTest do
                 id: "standard_rate",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
               }
             },
             price: %{
@@ -402,6 +410,10 @@ defmodule ExCius.InvoiceXmlParserTest do
                 id: "standard_rate",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
               }
             },
             price: %{
@@ -438,6 +450,7 @@ defmodule ExCius.InvoiceXmlParserTest do
         id: "INV-003",
         issue_datetime: "2025-05-01T12:00:00",
         operator_name: "Operator1",
+        operator_oib: "12345678901",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -499,6 +512,10 @@ defmodule ExCius.InvoiceXmlParserTest do
                 id: "standard_rate",
                 percent: 13,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
               }
             },
             price: %{
@@ -529,9 +546,10 @@ defmodule ExCius.InvoiceXmlParserTest do
     test "round-trip parsing preserves data integrity" do
       # Test that parsing and re-generating XML produces equivalent results
       original_params = %{
-        id: "ROUND-TRIP-TEST",
-        issue_datetime: "2025-12-21T09:49:00",
-        operator_name: "Test Operator",
+        id: "ROUND-TRIP-001",
+        issue_datetime: "2025-05-01T12:00:00",
+        operator_name: "Round Trip Test",
+        operator_oib: "12345678901",
         currency_code: "EUR",
         due_date: "2025-12-31",
         supplier: %{
@@ -594,6 +612,10 @@ defmodule ExCius.InvoiceXmlParserTest do
                 id: "standard_rate",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
               }
             },
             price: %{

@@ -78,6 +78,7 @@ defmodule ExCius.InvoiceXmlParser do
       issue_datetime: extract_issue_datetime(doc),
       due_date: extract_due_date(doc),
       operator_name: extract_operator_name(doc),
+      operator_oib: extract_operator_oib(doc),
       currency_code: extract_currency_code(doc),
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
@@ -127,6 +128,21 @@ defmodule ExCius.InvoiceXmlParser do
     case operator_note do
       nil -> nil
       note -> String.replace_prefix(note, "Operater: ", "")
+    end
+  end
+
+  defp extract_operator_oib(doc) do
+    # Extract from mandatory operator OIB note: "OIB operatera: [oib]"
+    notes = doc |> xpath(~x"//*[local-name()='Note']/text()"ls)
+
+    oib_note =
+      Enum.find(notes, fn note ->
+        String.starts_with?(note, "OIB operatera: ")
+      end)
+
+    case oib_note do
+      nil -> nil
+      note -> String.replace_prefix(note, "OIB operatera: ", "")
     end
   end
 
@@ -434,9 +450,16 @@ defmodule ExCius.InvoiceXmlParser do
         namespaces: ns
       )
 
-    case code do
-      "" -> nil
-      _ -> %{item_classification_code: code}
+    list_id =
+      doc
+      |> xpath(~x"#{classification_xpath}/cbc:ItemClassificationCode/@listID"s,
+        namespaces: ns
+      )
+
+    case {code, list_id} do
+      {"", _} -> nil
+      {c, ""} -> %{item_classification_code: c}
+      {c, lid} -> %{item_classification_code: c, list_id: lid}
     end
   end
 
@@ -490,6 +513,7 @@ defmodule ExCius.InvoiceXmlParser do
     user_notes =
       Enum.reject(all_notes, fn note ->
         String.starts_with?(note, "Operater: ") or
+          String.starts_with?(note, "OIB operatera: ") or
           String.starts_with?(note, "Vrijeme izdavanja: ")
       end)
 

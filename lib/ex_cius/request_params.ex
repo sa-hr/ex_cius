@@ -10,6 +10,7 @@ defmodule ExCius.RequestParams do
   - `:id` - Invoice identifier (string)
   - `:issue_datetime` - Date and time of issue (ISO 8601 string, DateTime, or NaiveDateTime)
   - `:operator_name` - Name of the operator issuing the invoice (string)
+  - `:operator_oib` - OIB (tax identification number) of the operator (11-digit string)
   - `:currency_code` - Document currency, only "EUR" supported (string)
   - `:supplier` - Supplier party information (map)
   - `:customer` - Customer party information (map)
@@ -47,6 +48,7 @@ defmodule ExCius.RequestParams do
     :id,
     :issue_datetime,
     :operator_name,
+    :operator_oib,
     :currency_code,
     :supplier,
     :customer,
@@ -88,7 +90,7 @@ defmodule ExCius.RequestParams do
 
   @required_line_fields [:id, :quantity, :unit_code, :line_extension_amount, :item, :price]
 
-  @required_item_fields [:name, :classified_tax_category]
+  @required_item_fields [:name, :classified_tax_category, :commodity_classification]
 
   @required_classified_tax_fields [:id, :percent, :tax_scheme_id]
 
@@ -107,6 +109,7 @@ defmodule ExCius.RequestParams do
       ...>   id: "INV-001",
       ...>   issue_datetime: "2025-05-01T12:00:00",
       ...>   operator_name: "Operator1",
+      ...>   operator_oib: "12345678901",
       ...>   currency_code: "EUR",
       ...>   supplier: %{
       ...>     oib: "12345678901",
@@ -160,7 +163,8 @@ defmodule ExCius.RequestParams do
       ...>       line_extension_amount: "100.00",
       ...>       item: %{
       ...>         name: "Product",
-      ...>         classified_tax_category: %{id: "standard_rate", percent: 25, tax_scheme_id: "vat"}
+      ...>         classified_tax_category: %{id: "standard_rate", percent: 25, tax_scheme_id: "vat"},
+      ...>         commodity_classification: %{item_classification_code: "73211200", list_id: "CG"}
       ...>       },
       ...>       price: %{price_amount: "100.00"}
       ...>     }
@@ -359,6 +363,7 @@ defmodule ExCius.RequestParams do
       |> add_error(:id, validate_id(params.id))
       |> add_error(:issue_datetime, validate_issue_datetime(params))
       |> add_error(:operator_name, validate_operator_name(params.operator_name))
+      |> add_error(:operator_oib, validate_oib(params.operator_oib))
       |> add_error(:due_date, validate_optional_date(params[:due_date]))
       |> add_error(:currency_code, validate_currency_code(params.currency_code))
       |> add_error(:invoice_type_code, validate_invoice_type_code(params[:invoice_type_code]))
@@ -935,7 +940,7 @@ defmodule ExCius.RequestParams do
           )
           |> add_error(
             :commodity_classification,
-            validate_optional_commodity_classification(item[:commodity_classification])
+            validate_required_commodity_classification(item.commodity_classification)
           )
 
         if Enum.empty?(errors), do: :ok, else: {:error, errors}
@@ -975,21 +980,23 @@ defmodule ExCius.RequestParams do
 
   defp validate_classified_tax_category(_), do: {:error, "must be a map"}
 
-  defp validate_optional_commodity_classification(nil), do: :ok
-
-  defp validate_optional_commodity_classification(classification) when is_map(classification) do
+  defp validate_required_commodity_classification(classification) when is_map(classification) do
     errors =
       %{}
       |> add_error(
         :item_classification_code,
-        validate_optional_non_empty_string(classification[:item_classification_code])
+        validate_non_empty_string_required(classification[:item_classification_code])
       )
-      |> add_error(:list_id, validate_optional_non_empty_string(classification[:list_id]))
+      |> add_error(:list_id, validate_cg_list_id(classification[:list_id]))
 
     if Enum.empty?(errors), do: :ok, else: {:error, errors}
   end
 
-  defp validate_optional_commodity_classification(_), do: {:error, "must be a map"}
+  defp validate_required_commodity_classification(_),
+    do: {:error, "must be a map with item_classification_code and list_id"}
+
+  defp validate_cg_list_id("CG"), do: :ok
+  defp validate_cg_list_id(_), do: {:error, "must be 'CG' for Croatian CIUS compliance"}
 
   defp validate_price(price) when is_map(price) do
     missing_fields =

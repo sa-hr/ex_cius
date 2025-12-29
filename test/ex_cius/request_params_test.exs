@@ -10,6 +10,7 @@ defmodule ExCius.RequestParamsTest do
       id: "INV-001",
       issue_datetime: "2025-05-01T12:00:00",
       operator_name: "Operator1",
+      operator_oib: "12345678901",
       currency_code: "EUR",
       supplier: %{
         oib: "12345678901",
@@ -71,6 +72,10 @@ defmodule ExCius.RequestParamsTest do
               id: "standard_rate",
               percent: 25,
               tax_scheme_id: "vat"
+            },
+            commodity_classification: %{
+              item_classification_code: "73211200",
+              list_id: "CG"
             }
           },
           price: %{

@@ -9,6 +9,7 @@ defmodule ExCius.InvoiceTemplateXMLTest do
         id: "5-P1-1",
         issue_datetime: "2025-05-01T12:00:00",
         operator_name: "Operater1",
+        operator_oib: "12345678901",
         currency_code: "EUR",
         due_date: "2025-05-31",
         supplier: %{
@@ -80,15 +81,15 @@ defmodule ExCius.InvoiceTemplateXMLTest do
             unit_code: "piece",
             line_extension_amount: "100.00",
             item: %{
-              name: "Proizvod",
-              commodity_classification: %{
-                item_classification_code: "62.90.90"
-              },
+              name: "Managed bookkeeping services",
               classified_tax_category: %{
                 id: "standard_rate",
-                name: "HR:PDV25",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "82990000",
+                list_id: "CG"
               }
             },
             price: %{
@@ -173,7 +174,7 @@ defmodule ExCius.InvoiceTemplateXMLTest do
                "<cbc:InvoicedQuantity unitCode=\"H87\">1.000</cbc:InvoicedQuantity>"
              )
 
-      assert String.contains?(xml, "<cbc:Name>Proizvod</cbc:Name>")
+      assert String.contains?(xml, "<cbc:Name>Managed bookkeeping services</cbc:Name>")
 
       assert String.contains?(
                xml,
@@ -199,9 +200,10 @@ defmodule ExCius.InvoiceTemplateXMLTest do
 
     test "generates XML without optional fields" do
       params = %{
-        id: "INV-001",
-        issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operator1",
+        id: "INV-003",
+        issue_datetime: "2025-07-01T16:00:00",
+        operator_name: "Operater3",
+        operator_oib: "33333333333",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -263,6 +265,10 @@ defmodule ExCius.InvoiceTemplateXMLTest do
                 id: "standard_rate",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
               }
             },
             price: %{
@@ -283,11 +289,11 @@ defmodule ExCius.InvoiceTemplateXMLTest do
 
       # Should always contain mandatory operator notes (two separate notes)
       assert String.contains?(xml, "<cbc:Note>")
-      assert String.contains?(xml, "<cbc:Note>Operater: Operator1</cbc:Note>")
-      assert String.contains?(xml, "Vrijeme izdavanja: 01. 05. 2025. u 12:00")
+      assert String.contains?(xml, "<cbc:Note>Operater: Operater3</cbc:Note>")
+      assert String.contains?(xml, "Vrijeme izdavanja: 01. 07. 2025. u 16:00")
 
       # Should still have required elements
-      assert String.contains?(xml, "<cbc:ID>INV-001</cbc:ID>")
+      assert String.contains?(xml, "<cbc:ID>INV-003</cbc:ID>")
       assert String.contains?(xml, "<cbc:ProfileID>P1</cbc:ProfileID>")
       assert String.contains?(xml, "<cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>")
     end
@@ -295,8 +301,9 @@ defmodule ExCius.InvoiceTemplateXMLTest do
     test "handles multiple invoice lines correctly" do
       params = %{
         id: "INV-002",
-        issue_datetime: "2025-05-01T12:00:00",
-        operator_name: "Operator1",
+        issue_datetime: "2025-06-01T14:30:00",
+        operator_name: "Operater2",
+        operator_oib: "11111111119",
         currency_code: "EUR",
         supplier: %{
           oib: "12345678901",
@@ -358,6 +365,10 @@ defmodule ExCius.InvoiceTemplateXMLTest do
                 id: "standard_rate",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
               }
             },
             price: %{
@@ -375,6 +386,10 @@ defmodule ExCius.InvoiceTemplateXMLTest do
                 id: "standard_rate",
                 percent: 25,
                 tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
               }
             },
             price: %{
@@ -400,8 +415,8 @@ defmodule ExCius.InvoiceTemplateXMLTest do
 
       # Should always contain mandatory operator notes (two separate notes)
       assert String.contains?(xml, "<cbc:Note>")
-      assert String.contains?(xml, "<cbc:Note>Operater: Operator1</cbc:Note>")
-      assert String.contains?(xml, "Vrijeme izdavanja: 01. 05. 2025. u 12:00")
+      assert String.contains?(xml, "<cbc:Note>Operater: Operater2</cbc:Note>")
+      assert String.contains?(xml, "Vrijeme izdavanja: 01. 06. 2025. u 14:30")
     end
   end
 end

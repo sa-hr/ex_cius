@@ -51,6 +51,7 @@ defmodule ExCius.InvoiceXmlParserFixed do
       issue_datetime: extract_issue_datetime(doc),
       due_date: extract_due_date(doc),
       operator_name: extract_operator_name(doc),
+      operator_oib: extract_operator_oib(doc),
       currency_code: extract_currency_code(doc),
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
@@ -100,6 +101,22 @@ defmodule ExCius.InvoiceXmlParserFixed do
     case operator_note do
       nil -> nil
       note when is_binary(note) -> String.replace_prefix(note, "Operater: ", "")
+      _ -> nil
+    end
+  end
+
+  defp extract_operator_oib(doc) do
+    # Extract from mandatory operator OIB note: "OIB operatera: [oib]"
+    notes = doc |> xpath(~x"//*[local-name()='Note']/text()"ls)
+
+    oib_note =
+      Enum.find(notes, fn note ->
+        is_binary(note) && String.starts_with?(note, "OIB operatera: ")
+      end)
+
+    case oib_note do
+      nil -> nil
+      note when is_binary(note) -> String.replace_prefix(note, "OIB operatera: ", "")
       _ -> nil
     end
   end
@@ -360,9 +377,14 @@ defmodule ExCius.InvoiceXmlParserFixed do
       doc
       |> xpath(~x"#{classification_path}/*[local-name()='ItemClassificationCode']/text()"s)
 
-    case code do
-      "" -> nil
-      c -> %{item_classification_code: c}
+    list_id =
+      doc
+      |> xpath(~x"#{classification_path}/*[local-name()='ItemClassificationCode']/@listID"s)
+
+    case {code, list_id} do
+      {"", _} -> nil
+      {c, ""} -> %{item_classification_code: c}
+      {c, lid} -> %{item_classification_code: c, list_id: lid}
     end
   end
 
@@ -412,6 +434,7 @@ defmodule ExCius.InvoiceXmlParserFixed do
       Enum.reject(notes, fn note ->
         is_binary(note) &&
           (String.starts_with?(note, "Operater: ") or
+             String.starts_with?(note, "OIB operatera: ") or
              String.starts_with?(note, "Vrijeme izdavanja: "))
       end)
 

@@ -23,7 +23,7 @@ defmodule ExCius.InvoiceTemplateXML do
   - Supports all required and optional invoice elements
   - Proper namespace declarations and XML structure
   - Automatic formatting for monetary amounts and quantities
-  - Mandatory operator notes per Croatian specification with proper date formatting
+  - Mandatory operator notes per Croatian specification with operator name, OIB, and proper date formatting
 
   ## Usage
 
@@ -32,6 +32,7 @@ defmodule ExCius.InvoiceTemplateXML do
         id: "INV-001",
         issue_datetime: "2025-05-01T12:00:00",
         operator_name: "Operator1",
+        operator_oib: "12345678901",
         currency_code: "EUR",
         supplier: %{...},
         customer: %{...},
@@ -68,7 +69,7 @@ defmodule ExCius.InvoiceTemplateXML do
   - Payment means (optional)
   - Tax totals and subtotals
   - Legal monetary totals
-  - Mandatory operator notes (operator name and issue time in Croatian format)
+  - Mandatory operator notes (operator name, operator OIB, and issue time in Croatian format)
   - Optional user notes
   - Invoice lines with items and pricing
   """
@@ -93,6 +94,7 @@ defmodule ExCius.InvoiceTemplateXML do
       ...>   id: "5-P1-1",
       ...>   issue_datetime: "2025-05-01T12:00:00",
       ...>   operator_name: "Operator1",
+      ...>   operator_oib: "12345678901",
       ...>   currency_code: "EUR",
       ...>   supplier: %{
       ...>     oib: "12345678901",
@@ -253,6 +255,7 @@ defmodule ExCius.InvoiceTemplateXML do
 
     [
       element("cbc:Note", "Operater: #{params.operator_name}"),
+      element("cbc:Note", "OIB operatera: #{params.operator_oib}"),
       element("cbc:Note", "Vrijeme izdavanja: #{formatted_datetime}")
     ]
   end
