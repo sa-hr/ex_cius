@@ -161,7 +161,7 @@ defmodule ExCius.InvoiceTemplateXML do
         "xmlns:cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
         "xmlns:cct": "urn:un:unece:uncefact:data:specification:CoreComponentTypeSchemaModule:2",
         "xmlns:ext": "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2",
-        "xmlns:hrextac": "urn:hzn.hr:schema:xsd:HRExtensionAggregateComponents-1",
+        "xmlns:hrextac": "urn:mfin.gov.hr:schema:xsd:HRExtensionAggregateComponents-1",
         "xmlns:p3": "urn:oasis:names:specification:ubl:schema:xsd:UnqualifiedDataTypes-2",
         "xmlns:sac":
           "urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2",
@@ -171,7 +171,7 @@ defmodule ExCius.InvoiceTemplateXML do
           "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2 ../xsd/ubl/maindoc/UBL-Invoice-2.1.xsd "
       ],
       [
-        build_ubl_extensions(),
+        build_ubl_extensions(params),
         build_customization_id(),
         build_profile_id(params),
         build_id(params),
@@ -184,6 +184,7 @@ defmodule ExCius.InvoiceTemplateXML do
         build_additional_document_references(params),
         build_accounting_supplier_party(params),
         build_accounting_customer_party(params),
+        build_delivery(params),
         build_payment_means(params),
         build_tax_total(params),
         build_legal_monetary_total(params),
@@ -193,17 +194,48 @@ defmodule ExCius.InvoiceTemplateXML do
     )
   end
 
-  defp build_ubl_extensions do
-    element("ext:UBLExtensions", [
-      element("ext:UBLExtension", [
-        element("ext:ExtensionContent", [
-          element("sig:UBLDocumentSignatures", [
-            element("sac:SignatureInformation", [])
+  defp build_ubl_extensions(params) do
+    extensions =
+      [
+        build_vat_cash_accounting_extension(params),
+        element("ext:UBLExtension", [
+          element("ext:ExtensionContent", [
+            element("sig:UBLDocumentSignatures", [
+              element("sac:SignatureInformation", [])
+            ])
           ])
+        ])
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    element("ext:UBLExtensions", extensions)
+  end
+
+  # Builds the HRFISK20Data extension for VAT cash accounting ("Obračun PDV po naplati")
+  # This is a Croatian-specific extension required when the supplier uses cash accounting for VAT.
+  defp build_vat_cash_accounting_extension(%{vat_cash_accounting: value})
+       when value in [true, "true", "Obračun po naplaćenoj naknadi"] do
+    element("ext:UBLExtension", [
+      element("ext:ExtensionContent", [
+        element("hrextac:HRFISK20Data", [
+          element("hrextac:HRObracunPDVPoNaplati", "Obračun po naplaćenoj naknadi")
         ])
       ])
     ])
   end
+
+  defp build_vat_cash_accounting_extension(%{vat_cash_accounting: value})
+       when is_binary(value) and byte_size(value) > 0 do
+    element("ext:UBLExtension", [
+      element("ext:ExtensionContent", [
+        element("hrextac:HRFISK20Data", [
+          element("hrextac:HRObracunPDVPoNaplati", value)
+        ])
+      ])
+    ])
+  end
+
+  defp build_vat_cash_accounting_extension(_), do: nil
 
   # Builds AdditionalDocumentReference elements for embedded attachments.
   # Each attachment is embedded as a base64-encoded binary object within the invoice XML.
@@ -434,6 +466,23 @@ defmodule ExCius.InvoiceTemplateXML do
     )
   end
 
+  # Builds the Delivery element with ActualDeliveryDate
+  defp build_delivery(%{delivery_date: nil}), do: nil
+
+  defp build_delivery(%{delivery_date: %Date{} = date}) do
+    element("cac:Delivery", [
+      element("cbc:ActualDeliveryDate", Date.to_iso8601(date))
+    ])
+  end
+
+  defp build_delivery(%{delivery_date: date}) when is_binary(date) do
+    element("cac:Delivery", [
+      element("cbc:ActualDeliveryDate", date)
+    ])
+  end
+
+  defp build_delivery(_), do: nil
+
   defp build_payment_means(params) do
     case Map.get(params, :payment_method) do
       nil ->
@@ -492,13 +541,25 @@ defmodule ExCius.InvoiceTemplateXML do
     category_id = TaxCategory.code(tax_category.id)
     scheme_id = TaxScheme.code(tax_category.tax_scheme_id)
 
-    element("cac:TaxCategory", [
-      element("cbc:ID", category_id),
-      element("cbc:Percent", tax_category.percent),
-      element("cac:TaxScheme", [
-        element("cbc:ID", scheme_id)
-      ])
-    ])
+    element(
+      "cac:TaxCategory",
+      [
+        element("cbc:ID", category_id),
+        element("cbc:Percent", tax_category.percent),
+        build_tax_exemption_reason(Map.get(tax_category, :tax_exemption_reason)),
+        element("cac:TaxScheme", [
+          element("cbc:ID", scheme_id)
+        ])
+      ]
+      |> Enum.reject(&is_nil/1)
+    )
+  end
+
+  defp build_tax_exemption_reason(nil), do: nil
+  defp build_tax_exemption_reason(""), do: nil
+
+  defp build_tax_exemption_reason(reason) when is_binary(reason) do
+    element("cbc:TaxExemptionReason", reason)
   end
 
   defp build_legal_monetary_total(params) do
@@ -560,12 +621,14 @@ defmodule ExCius.InvoiceTemplateXML do
   defp build_classified_tax_category(tax_category) do
     category_id = TaxCategory.code(tax_category.id)
     scheme_id = TaxScheme.code(tax_category.tax_scheme_id)
+    # Use explicitly provided name, or auto-generate Croatian tax name from percent
+    tax_name = Map.get(tax_category, :name) || croatian_tax_name(tax_category.percent)
 
     element(
       "cac:ClassifiedTaxCategory",
       [
         element("cbc:ID", category_id),
-        build_tax_category_name(Map.get(tax_category, :name)),
+        build_tax_category_name(tax_name),
         element("cbc:Percent", tax_category.percent),
         element("cac:TaxScheme", [
           element("cbc:ID", scheme_id)
@@ -580,6 +643,14 @@ defmodule ExCius.InvoiceTemplateXML do
   defp build_tax_category_name(name) do
     element("cbc:Name", name)
   end
+
+  # Auto-generates Croatian tax category name based on VAT percentage
+  # HR:Z for 0%, HR:PDV5 for 5%, HR:PDV13 for 13%, HR:PDV25 for 25%
+  defp croatian_tax_name(percent) when percent == 0, do: "HR:Z"
+  defp croatian_tax_name(percent) when percent == 5, do: "HR:PDV5"
+  defp croatian_tax_name(percent) when percent == 13, do: "HR:PDV13"
+  defp croatian_tax_name(percent) when percent == 25, do: "HR:PDV25"
+  defp croatian_tax_name(_), do: nil
 
   defp build_price(price, currency_id) do
     element(

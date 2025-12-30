@@ -563,4 +563,47 @@ defmodule ExCius.RequestParamsTest do
       end
     end
   end
+
+  describe "vat_cash_accounting validation" do
+    test "accepts nil vat_cash_accounting" do
+      params = valid_params()
+      assert {:ok, _result} = RequestParams.new(params)
+    end
+
+    test "accepts true for vat_cash_accounting" do
+      params = Map.put(valid_params(), :vat_cash_accounting, true)
+      assert {:ok, result} = RequestParams.new(params)
+      assert result.vat_cash_accounting == true
+    end
+
+    test "accepts false for vat_cash_accounting" do
+      params = Map.put(valid_params(), :vat_cash_accounting, false)
+      assert {:ok, result} = RequestParams.new(params)
+      assert result.vat_cash_accounting == false
+    end
+
+    test "accepts string for vat_cash_accounting" do
+      params = Map.put(valid_params(), :vat_cash_accounting, "Obračun po naplaćenoj naknadi")
+      assert {:ok, result} = RequestParams.new(params)
+      assert result.vat_cash_accounting == "Obračun po naplaćenoj naknadi"
+    end
+
+    test "accepts custom string for vat_cash_accounting" do
+      params = Map.put(valid_params(), :vat_cash_accounting, "Custom VAT cash note")
+      assert {:ok, result} = RequestParams.new(params)
+      assert result.vat_cash_accounting == "Custom VAT cash note"
+    end
+
+    test "rejects empty string for vat_cash_accounting" do
+      params = Map.put(valid_params(), :vat_cash_accounting, "")
+      assert {:error, errors} = RequestParams.new(params)
+      assert errors[:vat_cash_accounting] == "must be a boolean or non-empty string when provided"
+    end
+
+    test "rejects invalid type for vat_cash_accounting" do
+      params = Map.put(valid_params(), :vat_cash_accounting, 123)
+      assert {:error, errors} = RequestParams.new(params)
+      assert errors[:vat_cash_accounting] == "must be a boolean or non-empty string"
+    end
+  end
 end

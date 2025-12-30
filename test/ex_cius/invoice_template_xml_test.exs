@@ -730,5 +730,649 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       refute String.contains?(xml, "<cac:AdditionalDocumentReference>")
       refute String.contains?(xml, "<cbc:EmbeddedDocumentBinaryObject")
     end
+
+    test "generates XML with VAT cash accounting (Obračun PDV po naplati) when true" do
+      params = %{
+        id: "VAT-CASH-1",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        vat_cash_accounting: true,
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should contain HRFISK20Data extension with HRObracunPDVPoNaplati
+      assert String.contains?(xml, "<hrextac:HRFISK20Data>")
+
+      assert String.contains?(
+               xml,
+               "<hrextac:HRObracunPDVPoNaplati>Obračun po naplaćenoj naknadi</hrextac:HRObracunPDVPoNaplati>"
+             )
+
+      # Should have correct namespace
+      assert String.contains?(
+               xml,
+               "xmlns:hrextac=\"urn:mfin.gov.hr:schema:xsd:HRExtensionAggregateComponents-1\""
+             )
+    end
+
+    test "generates XML with custom VAT cash accounting text" do
+      params = %{
+        id: "VAT-CASH-2",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        vat_cash_accounting: "Custom cash accounting note",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should contain custom text
+      assert String.contains?(
+               xml,
+               "<hrextac:HRObracunPDVPoNaplati>Custom cash accounting note</hrextac:HRObracunPDVPoNaplati>"
+             )
+    end
+
+    test "generates XML with delivery date (ActualDeliveryDate)" do
+      params = %{
+        id: "DELIVERY-TEST",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        delivery_date: "2025-09-25",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should contain Delivery element with ActualDeliveryDate
+      assert String.contains?(xml, "<cac:Delivery>")
+      assert String.contains?(xml, "<cbc:ActualDeliveryDate>2025-09-25</cbc:ActualDeliveryDate>")
+    end
+
+    test "generates XML with reverse charge (AE) and TaxExemptionReason" do
+      params = %{
+        id: "REVERSE-CHARGE-TEST",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        delivery_date: "2025-09-25",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "0.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "0.00",
+              tax_category: %{
+                id: "reverse_charge",
+                percent: 0,
+                tax_scheme_id: "vat",
+                tax_exemption_reason:
+                  "Prijenos porezne obveze čl. 75. st. 3. t. c) Zakona o PDV-u"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "100.00",
+          payable_amount: "100.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "reverse_charge",
+                name: "HR:AE",
+                percent: 0,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should contain AE tax category with exemption reason
+      assert String.contains?(xml, "<cbc:ID>AE</cbc:ID>")
+      assert String.contains?(xml, "<cbc:TaxExemptionReason>Prijenos porezne obveze")
+    end
+
+    test "auto-generates Croatian tax category name based on percent" do
+      # Test that HR:PDV25 is automatically generated for 25% VAT
+      params = %{
+        id: "TAX-NAME-AUTO",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+                # Note: no :name provided - should auto-generate HR:PDV25
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should auto-generate HR:PDV25 for 25% VAT
+      assert String.contains?(xml, "<cbc:Name>HR:PDV25</cbc:Name>")
+    end
+
+    test "auto-generates correct Croatian tax names for all rates" do
+      # Helper to build params with specific tax percent
+      build_params = fn percent ->
+        %{
+          id: "TAX-NAME-#{percent}",
+          issue_datetime: "2025-12-01T12:00:00",
+          currency_code: "EUR",
+          supplier: %{
+            oib: "12345678901",
+            registration_name: "TVRTKA A d.o.o.",
+            postal_address: %{
+              street_name: "Ulica 1",
+              city_name: "ZAGREB",
+              postal_zone: "10000",
+              country_code: "HR"
+            },
+            party_tax_scheme: %{company_id: "HR12345678901", tax_scheme_id: "vat"},
+            seller_contact: %{id: "12345678901", name: "Operater1"}
+          },
+          customer: %{
+            oib: "11111111119",
+            registration_name: "Tvrtka B d.o.o.",
+            postal_address: %{
+              street_name: "Ulica 2",
+              city_name: "RIJEKA",
+              postal_zone: "51000",
+              country_code: "HR"
+            },
+            party_tax_scheme: %{company_id: "HR11111111119", tax_scheme_id: "vat"}
+          },
+          tax_total: %{
+            tax_amount: "0.00",
+            tax_subtotals: [
+              %{
+                taxable_amount: "100.00",
+                tax_amount: "0.00",
+                tax_category: %{id: "standard_rate", percent: percent, tax_scheme_id: "vat"}
+              }
+            ]
+          },
+          legal_monetary_total: %{
+            line_extension_amount: "100.00",
+            tax_exclusive_amount: "100.00",
+            tax_inclusive_amount: "100.00",
+            payable_amount: "100.00"
+          },
+          invoice_lines: [
+            %{
+              id: "1",
+              quantity: 1.0,
+              unit_code: "piece",
+              line_extension_amount: "100.00",
+              item: %{
+                name: "Proizvod",
+                classified_tax_category: %{
+                  id: "standard_rate",
+                  percent: percent,
+                  tax_scheme_id: "vat"
+                },
+                commodity_classification: %{item_classification_code: "62.20.20", list_id: "CG"}
+              },
+              price: %{price_amount: "100.00"}
+            }
+          ]
+        }
+      end
+
+      # Test all Croatian VAT rates
+      test_cases = [
+        {0, "HR:Z"},
+        {5, "HR:PDV5"},
+        {13, "HR:PDV13"},
+        {25, "HR:PDV25"}
+      ]
+
+      for {percent, expected_name} <- test_cases do
+        {:ok, validated_params} = RequestParams.new(build_params.(percent))
+        xml = InvoiceTemplateXML.build_xml(validated_params)
+
+        assert String.contains?(xml, "<cbc:Name>#{expected_name}</cbc:Name>"),
+               "Expected #{expected_name} for #{percent}% VAT"
+      end
+    end
+
+    test "generates XML without VAT cash accounting extension when not provided" do
+      params = %{
+        id: "NO-VAT-CASH",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should NOT contain HRFISK20Data extension
+      refute String.contains?(xml, "<hrextac:HRFISK20Data>")
+      refute String.contains?(xml, "<hrextac:HRObracunPDVPoNaplati>")
+    end
   end
 end

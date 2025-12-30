@@ -50,6 +50,7 @@ defmodule ExCius.InvoiceXmlParserFixed do
       id: extract_id(doc),
       issue_datetime: extract_issue_datetime(doc),
       due_date: extract_due_date(doc),
+      delivery_date: extract_delivery_date(doc),
       currency_code: extract_currency_code(doc),
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
@@ -59,7 +60,8 @@ defmodule ExCius.InvoiceXmlParserFixed do
       tax_total: extract_tax_total(doc),
       legal_monetary_total: extract_legal_monetary_total(doc),
       invoice_lines: extract_invoice_lines(doc),
-      notes: extract_user_notes(doc)
+      notes: extract_user_notes(doc),
+      vat_cash_accounting: extract_vat_cash_accounting(doc)
     }
     |> filter_nil_values()
   end
@@ -82,6 +84,14 @@ defmodule ExCius.InvoiceXmlParserFixed do
 
   defp extract_due_date(doc) do
     case doc |> xpath(~x"//*[local-name()='DueDate']/text()"s) do
+      "" -> nil
+      date -> date
+    end
+  end
+
+  defp extract_delivery_date(doc) do
+    case doc
+         |> xpath(~x"//*[local-name()='Delivery']/*[local-name()='ActualDeliveryDate']/text()"s) do
       "" -> nil
       date -> date
     end
@@ -281,11 +291,19 @@ defmodule ExCius.InvoiceXmlParserFixed do
     scheme_id =
       doc |> xpath(~x"#{category_path}/*[local-name()='TaxScheme']/*[local-name()='ID']/text()"s)
 
+    exemption_reason =
+      case doc |> xpath(~x"#{category_path}/*[local-name()='TaxExemptionReason']/text()"s) do
+        "" -> nil
+        reason -> reason
+      end
+
     %{
       id: map_tax_category_from_code(id),
       percent: parse_number(percent),
-      tax_scheme_id: map_tax_scheme_from_code(scheme_id)
+      tax_scheme_id: map_tax_scheme_from_code(scheme_id),
+      tax_exemption_reason: exemption_reason
     }
+    |> filter_nil_values()
   end
 
   defp extract_legal_monetary_total(doc) do
@@ -464,6 +482,20 @@ defmodule ExCius.InvoiceXmlParserFixed do
     case Float.parse(str) do
       {num, ""} -> num
       _ -> 0.0
+    end
+  end
+
+  # Extracts VAT cash accounting ("Obračun PDV po naplati") from Croatian HRFISK20Data extension
+  defp extract_vat_cash_accounting(doc) do
+    value =
+      doc
+      |> xpath(
+        ~x"//*[local-name()='HRFISK20Data']/*[local-name()='HRObracunPDVPoNaplati']/text()"s
+      )
+
+    case value do
+      "" -> nil
+      text -> text
     end
   end
 

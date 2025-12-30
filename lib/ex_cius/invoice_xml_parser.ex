@@ -77,6 +77,7 @@ defmodule ExCius.InvoiceXmlParser do
       id: extract_id(doc),
       issue_datetime: extract_issue_datetime(doc),
       due_date: extract_due_date(doc),
+      delivery_date: extract_delivery_date(doc),
       currency_code: extract_currency_code(doc),
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
@@ -86,7 +87,8 @@ defmodule ExCius.InvoiceXmlParser do
       tax_total: extract_tax_total(doc),
       legal_monetary_total: extract_legal_monetary_total(doc),
       invoice_lines: extract_invoice_lines(doc),
-      notes: extract_user_notes(doc)
+      notes: extract_user_notes(doc),
+      vat_cash_accounting: extract_vat_cash_accounting(doc)
     }
     |> filter_nil_values()
   end
@@ -109,6 +111,14 @@ defmodule ExCius.InvoiceXmlParser do
 
   defp extract_due_date(doc) do
     case doc |> xpath(~x"//*[local-name()='DueDate']/text()"s) do
+      "" -> nil
+      date -> date
+    end
+  end
+
+  defp extract_delivery_date(doc) do
+    case doc
+         |> xpath(~x"//*[local-name()='Delivery']/*[local-name()='ActualDeliveryDate']/text()"s) do
       "" -> nil
       date -> date
     end
@@ -332,11 +342,19 @@ defmodule ExCius.InvoiceXmlParser do
     percent = doc |> xpath(~x"#{category_xpath}/cbc:Percent/text()"s, namespaces: ns)
     scheme_id = doc |> xpath(~x"#{category_xpath}/cac:TaxScheme/cbc:ID/text()"s, namespaces: ns)
 
+    exemption_reason =
+      case doc |> xpath(~x"#{category_xpath}/cbc:TaxExemptionReason/text()"s, namespaces: ns) do
+        "" -> nil
+        reason -> reason
+      end
+
     %{
       id: map_tax_category_from_code(id),
       percent: parse_number(percent),
-      tax_scheme_id: map_tax_scheme_from_code(scheme_id)
+      tax_scheme_id: map_tax_scheme_from_code(scheme_id),
+      tax_exemption_reason: exemption_reason
     }
+    |> filter_nil_values()
   end
 
   defp extract_legal_monetary_total(doc) do
@@ -548,6 +566,21 @@ defmodule ExCius.InvoiceXmlParser do
       {num, ""} -> num
       {num, _} -> num
       :error -> str
+    end
+  end
+
+  # Extracts VAT cash accounting ("Obračun PDV po naplati") from Croatian HRFISK20Data extension
+  defp extract_vat_cash_accounting(doc) do
+    # Try to extract HRObracunPDVPoNaplati from UBL extensions using local-name() for namespace independence
+    value =
+      doc
+      |> xpath(
+        ~x"//*[local-name()='HRFISK20Data']/*[local-name()='HRObracunPDVPoNaplati']/text()"s
+      )
+
+    case value do
+      "" -> nil
+      text -> text
     end
   end
 

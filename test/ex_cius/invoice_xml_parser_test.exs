@@ -712,5 +712,534 @@ defmodule ExCius.InvoiceXmlParserTest do
       assert parsed_params.supplier.seller_contact.id == "51634872748"
       assert parsed_params.supplier.seller_contact.name == "Operater1"
     end
+
+    test "parses VAT cash accounting (Obračun PDV po naplati) from XML" do
+      # XML with VAT cash accounting extension
+      xml_with_vat_cash = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+               xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+               xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+               xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"
+               xmlns:hrextac="urn:mfin.gov.hr:schema:xsd:HRExtensionAggregateComponents-1">
+        <ext:UBLExtensions>
+          <ext:UBLExtension>
+            <ext:ExtensionContent>
+              <hrextac:HRFISK20Data>
+                <hrextac:HRObracunPDVPoNaplati>Obračun po naplaćenoj naknadi</hrextac:HRObracunPDVPoNaplati>
+              </hrextac:HRFISK20Data>
+            </ext:ExtensionContent>
+          </ext:UBLExtension>
+        </ext:UBLExtensions>
+        <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:mfin.gov.hr:cius-2025:1.0</cbc:CustomizationID>
+        <cbc:ProfileID>P1</cbc:ProfileID>
+        <cbc:ID>VAT-CASH-TEST</cbc:ID>
+        <cbc:IssueDate>2025-12-01</cbc:IssueDate>
+        <cbc:IssueTime>12:00:00</cbc:IssueTime>
+        <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+        <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+        <cac:AccountingSupplierParty>
+          <cac:Party>
+            <cbc:EndpointID schemeID="9934">12345678901</cbc:EndpointID>
+            <cac:PostalAddress>
+              <cbc:StreetName>Ulica 1</cbc:StreetName>
+              <cbc:CityName>ZAGREB</cbc:CityName>
+              <cbc:PostalZone>10000</cbc:PostalZone>
+              <cac:Country>
+                <cbc:IdentificationCode>HR</cbc:IdentificationCode>
+              </cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+              <cbc:CompanyID>HR12345678901</cbc:CompanyID>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:PartyTaxScheme>
+            <cac:PartyLegalEntity>
+              <cbc:RegistrationName>TVRTKA A d.o.o.</cbc:RegistrationName>
+            </cac:PartyLegalEntity>
+          </cac:Party>
+          <cac:SellerContact>
+            <cbc:ID>12345678901</cbc:ID>
+            <cbc:Name>Operater1</cbc:Name>
+          </cac:SellerContact>
+        </cac:AccountingSupplierParty>
+        <cac:AccountingCustomerParty>
+          <cac:Party>
+            <cbc:EndpointID schemeID="9934">11111111119</cbc:EndpointID>
+            <cac:PostalAddress>
+              <cbc:StreetName>Ulica 2</cbc:StreetName>
+              <cbc:CityName>RIJEKA</cbc:CityName>
+              <cbc:PostalZone>51000</cbc:PostalZone>
+              <cac:Country>
+                <cbc:IdentificationCode>HR</cbc:IdentificationCode>
+              </cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+              <cbc:CompanyID>HR11111111119</cbc:CompanyID>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:PartyTaxScheme>
+            <cac:PartyLegalEntity>
+              <cbc:RegistrationName>Tvrtka B d.o.o.</cbc:RegistrationName>
+            </cac:PartyLegalEntity>
+          </cac:Party>
+        </cac:AccountingCustomerParty>
+        <cac:TaxTotal>
+          <cbc:TaxAmount currencyID="EUR">25.00</cbc:TaxAmount>
+          <cac:TaxSubtotal>
+            <cbc:TaxableAmount currencyID="EUR">100.00</cbc:TaxableAmount>
+            <cbc:TaxAmount currencyID="EUR">25.00</cbc:TaxAmount>
+            <cac:TaxCategory>
+              <cbc:ID>S</cbc:ID>
+              <cbc:Percent>25</cbc:Percent>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:TaxCategory>
+          </cac:TaxSubtotal>
+        </cac:TaxTotal>
+        <cac:LegalMonetaryTotal>
+          <cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
+          <cbc:TaxExclusiveAmount currencyID="EUR">100.00</cbc:TaxExclusiveAmount>
+          <cbc:TaxInclusiveAmount currencyID="EUR">125.00</cbc:TaxInclusiveAmount>
+          <cbc:PayableAmount currencyID="EUR">125.00</cbc:PayableAmount>
+        </cac:LegalMonetaryTotal>
+        <cac:InvoiceLine>
+          <cbc:ID>1</cbc:ID>
+          <cbc:InvoicedQuantity unitCode="H87">1.000</cbc:InvoicedQuantity>
+          <cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
+          <cac:Item>
+            <cbc:Name>Proizvod</cbc:Name>
+            <cac:CommodityClassification>
+              <cbc:ItemClassificationCode listID="CG">62.20.20</cbc:ItemClassificationCode>
+            </cac:CommodityClassification>
+            <cac:ClassifiedTaxCategory>
+              <cbc:ID>S</cbc:ID>
+              <cbc:Percent>25</cbc:Percent>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:ClassifiedTaxCategory>
+          </cac:Item>
+          <cac:Price>
+            <cbc:PriceAmount currencyID="EUR">100.000000</cbc:PriceAmount>
+          </cac:Price>
+        </cac:InvoiceLine>
+      </Invoice>
+      """
+
+      {:ok, parsed_params} = InvoiceXmlParserFixed.parse(xml_with_vat_cash)
+
+      # Verify VAT cash accounting is parsed
+      assert parsed_params.vat_cash_accounting == "Obračun po naplaćenoj naknadi"
+      assert parsed_params.id == "VAT-CASH-TEST"
+    end
+
+    test "round-trip preserves VAT cash accounting flag" do
+      original_params = %{
+        id: "VAT-CASH-ROUNDTRIP",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        vat_cash_accounting: true,
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      # Generate XML
+      {:ok, validated_params} = RequestParams.new(original_params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Parse it back
+      {:ok, parsed_params} = InvoiceXmlParserFixed.parse(xml)
+
+      # Should preserve the VAT cash accounting value
+      assert parsed_params.vat_cash_accounting == "Obračun po naplaćenoj naknadi"
+    end
+
+    test "parses delivery date from XML" do
+      original_params = %{
+        id: "DELIVERY-PARSE-TEST",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        delivery_date: "2025-09-25",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(original_params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+      {:ok, parsed_params} = InvoiceXmlParserFixed.parse(xml)
+
+      assert parsed_params.delivery_date == "2025-09-25"
+    end
+
+    test "parses reverse charge (AE) with TaxExemptionReason from XML" do
+      xml_with_reverse_charge = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+               xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+               xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+               xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
+        <ext:UBLExtensions>
+          <ext:UBLExtension>
+            <ext:ExtensionContent></ext:ExtensionContent>
+          </ext:UBLExtension>
+        </ext:UBLExtensions>
+        <cbc:CustomizationID>urn:cen.eu:en16931:2017</cbc:CustomizationID>
+        <cbc:ProfileID>P1</cbc:ProfileID>
+        <cbc:ID>REVERSE-CHARGE-001</cbc:ID>
+        <cbc:IssueDate>2025-12-01</cbc:IssueDate>
+        <cbc:IssueTime>12:00:00</cbc:IssueTime>
+        <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+        <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+        <cac:AccountingSupplierParty>
+          <cac:Party>
+            <cbc:EndpointID schemeID="9934">12345678901</cbc:EndpointID>
+            <cac:PostalAddress>
+              <cbc:StreetName>Ulica 1</cbc:StreetName>
+              <cbc:CityName>ZAGREB</cbc:CityName>
+              <cbc:PostalZone>10000</cbc:PostalZone>
+              <cac:Country>
+                <cbc:IdentificationCode>HR</cbc:IdentificationCode>
+              </cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+              <cbc:CompanyID>HR12345678901</cbc:CompanyID>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:PartyTaxScheme>
+            <cac:PartyLegalEntity>
+              <cbc:RegistrationName>TVRTKA A d.o.o.</cbc:RegistrationName>
+            </cac:PartyLegalEntity>
+          </cac:Party>
+          <cac:SellerContact>
+            <cbc:ID>12345678901</cbc:ID>
+            <cbc:Name>Operater1</cbc:Name>
+          </cac:SellerContact>
+        </cac:AccountingSupplierParty>
+        <cac:AccountingCustomerParty>
+          <cac:Party>
+            <cbc:EndpointID schemeID="9934">11111111119</cbc:EndpointID>
+            <cac:PostalAddress>
+              <cbc:StreetName>Ulica 2</cbc:StreetName>
+              <cbc:CityName>RIJEKA</cbc:CityName>
+              <cbc:PostalZone>51000</cbc:PostalZone>
+              <cac:Country>
+                <cbc:IdentificationCode>HR</cbc:IdentificationCode>
+              </cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+              <cbc:CompanyID>HR11111111119</cbc:CompanyID>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:PartyTaxScheme>
+            <cac:PartyLegalEntity>
+              <cbc:RegistrationName>Tvrtka B d.o.o.</cbc:RegistrationName>
+            </cac:PartyLegalEntity>
+          </cac:Party>
+        </cac:AccountingCustomerParty>
+        <cac:Delivery>
+          <cbc:ActualDeliveryDate>2025-09-25</cbc:ActualDeliveryDate>
+        </cac:Delivery>
+        <cac:TaxTotal>
+          <cbc:TaxAmount currencyID="EUR">0.00</cbc:TaxAmount>
+          <cac:TaxSubtotal>
+            <cbc:TaxableAmount currencyID="EUR">100.00</cbc:TaxableAmount>
+            <cbc:TaxAmount currencyID="EUR">0.00</cbc:TaxAmount>
+            <cac:TaxCategory>
+              <cbc:ID>AE</cbc:ID>
+              <cbc:Percent>0</cbc:Percent>
+              <cbc:TaxExemptionReason>Prijenos porezne obveze čl. 75.</cbc:TaxExemptionReason>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:TaxCategory>
+          </cac:TaxSubtotal>
+        </cac:TaxTotal>
+        <cac:LegalMonetaryTotal>
+          <cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
+          <cbc:TaxExclusiveAmount currencyID="EUR">100.00</cbc:TaxExclusiveAmount>
+          <cbc:TaxInclusiveAmount currencyID="EUR">100.00</cbc:TaxInclusiveAmount>
+          <cbc:PayableAmount currencyID="EUR">100.00</cbc:PayableAmount>
+        </cac:LegalMonetaryTotal>
+        <cac:InvoiceLine>
+          <cbc:ID>1</cbc:ID>
+          <cbc:InvoicedQuantity unitCode="H87">1.000</cbc:InvoicedQuantity>
+          <cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
+          <cac:Item>
+            <cbc:Name>Proizvod</cbc:Name>
+            <cac:CommodityClassification>
+              <cbc:ItemClassificationCode listID="CG">62.20.20</cbc:ItemClassificationCode>
+            </cac:CommodityClassification>
+            <cac:ClassifiedTaxCategory>
+              <cbc:ID>AE</cbc:ID>
+              <cbc:Name>HR:AE</cbc:Name>
+              <cbc:Percent>0</cbc:Percent>
+              <cac:TaxScheme>
+                <cbc:ID>VAT</cbc:ID>
+              </cac:TaxScheme>
+            </cac:ClassifiedTaxCategory>
+          </cac:Item>
+          <cac:Price>
+            <cbc:PriceAmount currencyID="EUR">100.000000</cbc:PriceAmount>
+          </cac:Price>
+        </cac:InvoiceLine>
+      </Invoice>
+      """
+
+      {:ok, parsed_params} = InvoiceXmlParserFixed.parse(xml_with_reverse_charge)
+
+      # Verify reverse charge tax category
+      assert parsed_params.id == "REVERSE-CHARGE-001"
+      assert parsed_params.delivery_date == "2025-09-25"
+
+      tax_category = hd(parsed_params.tax_total.tax_subtotals).tax_category
+      assert tax_category.id == "vat_reverse_charge"
+      assert tax_category.percent == 0
+      assert tax_category.tax_exemption_reason == "Prijenos porezne obveze čl. 75."
+    end
+
+    test "parses XML without VAT cash accounting correctly" do
+      original_params = %{
+        id: "NO-VAT-CASH",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      # Generate XML without VAT cash accounting
+      {:ok, validated_params} = RequestParams.new(original_params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Parse it back
+      {:ok, parsed_params} = InvoiceXmlParserFixed.parse(xml)
+
+      # Should NOT have vat_cash_accounting key
+      refute Map.has_key?(parsed_params, :vat_cash_accounting)
+    end
   end
 end

@@ -21,9 +21,19 @@ defmodule ExCius.RequestParams do
   - `:business_process` - Business process, defaults to "billing" (atom/string)
   - `:invoice_type_code` - Type of invoice, defaults to "commercial_invoice" (atom/string)
   - `:due_date` - Payment due date (Date or ISO 8601 string)
+  - `:delivery_date` - Actual delivery date (Date or ISO 8601 string)
   - `:payment_method` - Payment information (map)
   - `:notes` - List of free-form notes (list of strings)
   - `:attachments` - List of embedded document attachments (list of maps)
+  - `:vat_cash_accounting` - VAT cash accounting flag for Croatian "Obračun PDV po naplati" (boolean or string)
+
+  ## Tax Category Structure
+
+  Tax categories in `:tax_subtotals` and `:classified_tax_category` support:
+  - `:id` - Tax category code (e.g., "standard_rate", "reverse_charge", "exempt")
+  - `:percent` - Tax percentage (number)
+  - `:tax_scheme_id` - Tax scheme identifier (e.g., "vat")
+  - `:tax_exemption_reason` - (optional) Reason for tax exemption, required for reverse_charge (AE) and exempt (E) categories
 
   ## Attachment Structure
 
@@ -232,7 +242,8 @@ defmodule ExCius.RequestParams do
          {:ok, _} <- validate_payment_method(params[:payment_method]),
          {:ok, _} <- validate_invoice_lines(params.invoice_lines, params.currency_code),
          {:ok, _} <- validate_notes(params[:notes]),
-         {:ok, _} <- validate_attachments(params[:attachments]) do
+         {:ok, _} <- validate_attachments(params[:attachments]),
+         {:ok, _} <- validate_vat_cash_accounting(params[:vat_cash_accounting]) do
       {:ok, params}
     end
   end
@@ -391,6 +402,7 @@ defmodule ExCius.RequestParams do
       |> add_error(:id, validate_id(params.id))
       |> add_error(:issue_datetime, validate_issue_datetime(params))
       |> add_error(:due_date, validate_optional_date(params[:due_date]))
+      |> add_error(:delivery_date, validate_optional_date(params[:delivery_date]))
       |> add_error(:currency_code, validate_currency_code(params.currency_code))
       |> add_error(:invoice_type_code, validate_invoice_type_code(params[:invoice_type_code]))
       |> add_error(
@@ -1186,6 +1198,20 @@ defmodule ExCius.RequestParams do
   end
 
   defp validate_base64_content(_), do: {:error, "must be a non-empty base64-encoded string"}
+
+  # Validates the optional VAT cash accounting field ("Obračun PDV po naplati")
+  # Accepts: nil, true, false, or a non-empty string
+  defp validate_vat_cash_accounting(nil), do: {:ok, nil}
+  defp validate_vat_cash_accounting(value) when is_boolean(value), do: {:ok, value}
+
+  defp validate_vat_cash_accounting(value) when is_binary(value) and byte_size(value) > 0,
+    do: {:ok, value}
+
+  defp validate_vat_cash_accounting(""),
+    do: {:error, %{vat_cash_accounting: "must be a boolean or non-empty string when provided"}}
+
+  defp validate_vat_cash_accounting(_),
+    do: {:error, %{vat_cash_accounting: "must be a boolean or non-empty string"}}
 
   defp add_error(errors, _field, :ok), do: errors
 
