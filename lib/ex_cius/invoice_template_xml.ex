@@ -24,6 +24,7 @@ defmodule ExCius.InvoiceTemplateXML do
   - Proper namespace declarations and XML structure
   - Automatic formatting for monetary amounts and quantities
   - Mandatory operator notes per Croatian specification with operator name, OIB, and proper date formatting
+  - Embedded document attachments (PDF visualization, images, etc.) via AdditionalDocumentReference
 
   ## Usage
 
@@ -45,7 +46,15 @@ defmodule ExCius.InvoiceTemplateXML do
         customer: %{...},
         tax_total: %{...},
         legal_monetary_total: %{...},
-        invoice_lines: [...]
+        invoice_lines: [...],
+        attachments: [                     # Optional embedded documents
+          %{
+            id: "1",
+            filename: "invoice.pdf",
+            mime_code: "application/pdf",
+            content: "BASE64_ENCODED_CONTENT"
+          }
+        ]
       }
 
       # Validate parameters
@@ -63,6 +72,7 @@ defmodule ExCius.InvoiceTemplateXML do
   - Multiple invoice lines support
   - Proper XML namespaces and schema locations
   - Mandatory operator and issue time notes
+  - Embedded document attachments (AdditionalDocumentReference with EmbeddedDocumentBinaryObject)
 
   ## XML Structure
 
@@ -71,14 +81,26 @@ defmodule ExCius.InvoiceTemplateXML do
   - Invoice root element with all namespaces
   - UBL Extensions
   - Invoice identification and dates
+  - Notes (operator and user notes)
+  - Document currency code
+  - Additional document references (embedded attachments)
   - Supplier party (AccountingSupplierParty)
   - Customer party (AccountingCustomerParty)
   - Payment means (optional)
   - Tax totals and subtotals
   - Legal monetary totals
-  - Mandatory operator notes (operator name, operator OIB, and issue time in Croatian format)
-  - Optional user notes
   - Invoice lines with items and pricing
+
+  ## Embedded Attachments
+
+  Attachments (like PDF visualizations of the invoice) can be embedded directly in the XML
+  using the `AdditionalDocumentReference` element with an `EmbeddedDocumentBinaryObject`.
+  The content must be base64-encoded. Supported MIME types include:
+  - `application/pdf`
+  - `image/png`, `image/jpeg`, `image/gif`
+  - `text/csv`, `application/xml`, `text/xml`
+  - `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+  - `application/vnd.oasis.opendocument.spreadsheet`
   """
 
   @doc """
@@ -159,6 +181,7 @@ defmodule ExCius.InvoiceTemplateXML do
         build_invoice_type_code(params),
         build_notes(params),
         build_document_currency_code(params),
+        build_additional_document_references(params),
         build_accounting_supplier_party(params),
         build_accounting_customer_party(params),
         build_payment_means(params),
@@ -178,6 +201,32 @@ defmodule ExCius.InvoiceTemplateXML do
             element("sac:SignatureInformation", [])
           ])
         ])
+      ])
+    ])
+  end
+
+  # Builds AdditionalDocumentReference elements for embedded attachments.
+  # Each attachment is embedded as a base64-encoded binary object within the invoice XML.
+  # This is commonly used to embed PDF visualizations of the invoice.
+  defp build_additional_document_references(%{attachments: nil}), do: nil
+  defp build_additional_document_references(%{attachments: []}), do: nil
+
+  defp build_additional_document_references(%{attachments: attachments})
+       when is_list(attachments) do
+    Enum.map(attachments, &build_additional_document_reference/1)
+  end
+
+  defp build_additional_document_references(_), do: nil
+
+  defp build_additional_document_reference(attachment) do
+    element("cac:AdditionalDocumentReference", [
+      element("cbc:ID", attachment.id),
+      element("cac:Attachment", [
+        element(
+          "cbc:EmbeddedDocumentBinaryObject",
+          %{filename: attachment.filename, mimeCode: attachment.mime_code},
+          attachment.content
+        )
       ])
     ])
   end

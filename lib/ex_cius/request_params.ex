@@ -23,6 +23,15 @@ defmodule ExCius.RequestParams do
   - `:due_date` - Payment due date (Date or ISO 8601 string)
   - `:payment_method` - Payment information (map)
   - `:notes` - List of free-form notes (list of strings)
+  - `:attachments` - List of embedded document attachments (list of maps)
+
+  ## Attachment Structure
+
+  Each attachment in the `:attachments` list requires:
+  - `:id` - Document reference identifier (string, e.g., "1", "2")
+  - `:filename` - Name of the attached file (string, e.g., "invoice.pdf")
+  - `:mime_code` - MIME type of the attachment (string, e.g., "application/pdf")
+  - `:content` - Base64-encoded content of the file (string)
 
   ## Supplier Structure
 
@@ -110,6 +119,8 @@ defmodule ExCius.RequestParams do
   @required_price_fields [:price_amount]
 
   @required_payment_means_fields [:payment_means_code, :payee_financial_account_id]
+
+  @required_attachment_fields [:id, :filename, :mime_code, :content]
 
   @doc """
   Creates and validates UBL 2.1 invoice parameters from an input map.
@@ -220,7 +231,8 @@ defmodule ExCius.RequestParams do
          {:ok, _} <- validate_monetary_total(params.legal_monetary_total),
          {:ok, _} <- validate_payment_method(params[:payment_method]),
          {:ok, _} <- validate_invoice_lines(params.invoice_lines, params.currency_code),
-         {:ok, _} <- validate_notes(params[:notes]) do
+         {:ok, _} <- validate_notes(params[:notes]),
+         {:ok, _} <- validate_attachments(params[:attachments]) do
       {:ok, params}
     end
   end
@@ -243,6 +255,7 @@ defmodule ExCius.RequestParams do
     |> Map.update(:legal_monetary_total, %{}, &atomize_map/1)
     |> Map.update(:payment_method, nil, &atomize_payment_method/1)
     |> Map.update(:invoice_lines, [], &atomize_invoice_lines/1)
+    |> Map.update(:attachments, nil, &atomize_attachments/1)
   end
 
   defp atomize_map(nil), do: nil
@@ -1079,6 +1092,100 @@ defmodule ExCius.RequestParams do
   end
 
   defp validate_notes(_), do: {:error, %{notes: "must be a list of strings"}}
+
+  defp atomize_attachments(nil), do: nil
+
+  defp atomize_attachments(attachments) when is_list(attachments) do
+    Enum.map(attachments, &atomize_map/1)
+  end
+
+  defp atomize_attachments(value), do: value
+
+  defp validate_attachments(nil), do: {:ok, nil}
+
+  defp validate_attachments(attachments) when is_list(attachments) do
+    errors =
+      attachments
+      |> Enum.with_index(1)
+      |> Enum.reduce(%{}, fn {attachment, index}, acc ->
+        case validate_attachment(attachment, index) do
+          :ok -> acc
+          {:error, errors} -> Map.merge(acc, errors)
+        end
+      end)
+
+    if map_size(errors) == 0, do: {:ok, attachments}, else: {:error, errors}
+  end
+
+  defp validate_attachments(_), do: {:error, %{attachments: "must be a list of attachment maps"}}
+
+  defp validate_attachment(attachment, index) when is_map(attachment) do
+    missing =
+      @required_attachment_fields
+      |> Enum.filter(fn field -> is_nil(Map.get(attachment, field)) end)
+
+    if missing == [] do
+      errors =
+        %{}
+        |> add_error(:"attachments[#{index}].id", validate_attachment_id(attachment[:id]))
+        |> add_error(
+          :"attachments[#{index}].filename",
+          validate_attachment_filename(attachment[:filename])
+        )
+        |> add_error(
+          :"attachments[#{index}].mime_code",
+          validate_mime_code(attachment[:mime_code])
+        )
+        |> add_error(
+          :"attachments[#{index}].content",
+          validate_base64_content(attachment[:content])
+        )
+
+      if map_size(errors) == 0, do: :ok, else: {:error, errors}
+    else
+      {:error, missing_field_errors(Enum.map(missing, fn f -> :"attachments[#{index}].#{f}" end))}
+    end
+  end
+
+  defp validate_attachment(_, index), do: {:error, %{:"attachments[#{index}]" => "must be a map"}}
+
+  defp validate_attachment_id(value) when is_binary(value) and byte_size(value) > 0, do: :ok
+  defp validate_attachment_id(_), do: {:error, "must be a non-empty string"}
+
+  defp validate_attachment_filename(value) when is_binary(value) and byte_size(value) > 0, do: :ok
+  defp validate_attachment_filename(_), do: {:error, "must be a non-empty string"}
+
+  defp validate_mime_code(value) when is_binary(value) do
+    valid_mime_codes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/gif",
+      "text/csv",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.oasis.opendocument.spreadsheet",
+      "application/xml",
+      "text/xml"
+    ]
+
+    if value in valid_mime_codes do
+      :ok
+    else
+      {:error, "must be a valid MIME type (e.g., application/pdf, image/png)"}
+    end
+  end
+
+  defp validate_mime_code(_), do: {:error, "must be a string"}
+
+  defp validate_base64_content(value) when is_binary(value) and byte_size(value) > 0 do
+    # Basic validation - check if it looks like valid base64
+    case Base.decode64(value) do
+      {:ok, _} -> :ok
+      :error -> {:error, "must be valid base64-encoded content"}
+    end
+  end
+
+  defp validate_base64_content(_), do: {:error, "must be a non-empty base64-encoded string"}
 
   defp add_error(errors, _field, :ok), do: errors
 

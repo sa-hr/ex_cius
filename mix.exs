@@ -4,7 +4,7 @@ defmodule ExCius.MixProject do
   def project do
     [
       app: :ex_cius,
-      version: "0.0.5",
+      version: "0.0.6",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       description: description(),

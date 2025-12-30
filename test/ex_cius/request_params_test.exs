@@ -419,4 +419,148 @@ defmodule ExCius.RequestParamsTest do
       assert result.payment_method.payment_id == "HR00 123456"
     end
   end
+
+  describe "attachments validation" do
+    test "accepts valid attachments" do
+      # Base64 encoded "Hello PDF" (just a test string)
+      base64_content = Base.encode64("Hello PDF")
+
+      params =
+        Map.put(valid_params(), :attachments, [
+          %{
+            id: "1",
+            filename: "invoice.pdf",
+            mime_code: "application/pdf",
+            content: base64_content
+          }
+        ])
+
+      assert {:ok, result} = RequestParams.new(params)
+      assert length(result.attachments) == 1
+      assert hd(result.attachments).filename == "invoice.pdf"
+    end
+
+    test "accepts multiple attachments" do
+      base64_content = Base.encode64("test content")
+
+      params =
+        Map.put(valid_params(), :attachments, [
+          %{
+            id: "1",
+            filename: "invoice.pdf",
+            mime_code: "application/pdf",
+            content: base64_content
+          },
+          %{
+            id: "2",
+            filename: "image.png",
+            mime_code: "image/png",
+            content: base64_content
+          }
+        ])
+
+      assert {:ok, result} = RequestParams.new(params)
+      assert length(result.attachments) == 2
+    end
+
+    test "accepts nil attachments" do
+      params = Map.put(valid_params(), :attachments, nil)
+      assert {:ok, _result} = RequestParams.new(params)
+    end
+
+    test "validates without attachments field" do
+      params = valid_params()
+      assert {:ok, _result} = RequestParams.new(params)
+    end
+
+    test "rejects attachment with missing id" do
+      base64_content = Base.encode64("test")
+
+      params =
+        Map.put(valid_params(), :attachments, [
+          %{
+            filename: "invoice.pdf",
+            mime_code: "application/pdf",
+            content: base64_content
+          }
+        ])
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert Map.has_key?(errors, :"attachments[1].id")
+    end
+
+    test "rejects attachment with missing filename" do
+      base64_content = Base.encode64("test")
+
+      params =
+        Map.put(valid_params(), :attachments, [
+          %{
+            id: "1",
+            mime_code: "application/pdf",
+            content: base64_content
+          }
+        ])
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert Map.has_key?(errors, :"attachments[1].filename")
+    end
+
+    test "rejects attachment with invalid mime_code" do
+      base64_content = Base.encode64("test")
+
+      params =
+        Map.put(valid_params(), :attachments, [
+          %{
+            id: "1",
+            filename: "invoice.pdf",
+            mime_code: "invalid/type",
+            content: base64_content
+          }
+        ])
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert Map.has_key?(errors, :"attachments[1].mime_code")
+    end
+
+    test "rejects attachment with invalid base64 content" do
+      params =
+        Map.put(valid_params(), :attachments, [
+          %{
+            id: "1",
+            filename: "invoice.pdf",
+            mime_code: "application/pdf",
+            content: "not-valid-base64!!!"
+          }
+        ])
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert Map.has_key?(errors, :"attachments[1].content")
+    end
+
+    test "accepts various valid mime types" do
+      base64_content = Base.encode64("test")
+
+      valid_mimes = [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "text/csv",
+        "application/xml"
+      ]
+
+      for mime <- valid_mimes do
+        params =
+          Map.put(valid_params(), :attachments, [
+            %{
+              id: "1",
+              filename: "file.ext",
+              mime_code: mime,
+              content: base64_content
+            }
+          ])
+
+        assert {:ok, _result} = RequestParams.new(params)
+      end
+    end
+  end
 end

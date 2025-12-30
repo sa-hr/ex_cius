@@ -420,5 +420,315 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       assert String.contains?(xml, "<cbc:Note>Operater: Operater2</cbc:Note>")
       assert String.contains?(xml, "Vrijeme izdavanja: 01. 06. 2025. u 14:30")
     end
+
+    test "generates XML with embedded PDF attachment" do
+      base64_content = Base.encode64("PDF content here")
+
+      params = %{
+        id: "INV-ATTACH-001",
+        issue_datetime: "2025-05-01T12:00:00",
+        currency_code: "EUR",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "Company A d.o.o.",
+          postal_address: %{
+            street_name: "Street 1",
+            city_name: "Zagreb",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Company B d.o.o.",
+          postal_address: %{
+            street_name: "Street 2",
+            city_name: "Rijeka",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Product",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ],
+        attachments: [
+          %{
+            id: "1",
+            filename: "INV-ATTACH-001.pdf",
+            mime_code: "application/pdf",
+            content: base64_content
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Check AdditionalDocumentReference structure
+      assert String.contains?(xml, "<cac:AdditionalDocumentReference>")
+      assert String.contains?(xml, "<cbc:ID>1</cbc:ID>")
+      assert String.contains?(xml, "<cac:Attachment>")
+      assert String.contains?(xml, "<cbc:EmbeddedDocumentBinaryObject")
+      assert String.contains?(xml, "filename=\"INV-ATTACH-001.pdf\"")
+      assert String.contains?(xml, "mimeCode=\"application/pdf\"")
+      assert String.contains?(xml, base64_content)
+      assert String.contains?(xml, "</cbc:EmbeddedDocumentBinaryObject>")
+      assert String.contains?(xml, "</cac:Attachment>")
+      assert String.contains?(xml, "</cac:AdditionalDocumentReference>")
+    end
+
+    test "generates XML with multiple attachments" do
+      pdf_content = Base.encode64("PDF content")
+      image_content = Base.encode64("PNG content")
+
+      params = %{
+        id: "INV-MULTI-001",
+        issue_datetime: "2025-05-01T12:00:00",
+        currency_code: "EUR",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "Company A d.o.o.",
+          postal_address: %{
+            street_name: "Street 1",
+            city_name: "Zagreb",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Company B d.o.o.",
+          postal_address: %{
+            street_name: "Street 2",
+            city_name: "Rijeka",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Product",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ],
+        attachments: [
+          %{
+            id: "1",
+            filename: "invoice.pdf",
+            mime_code: "application/pdf",
+            content: pdf_content
+          },
+          %{
+            id: "2",
+            filename: "logo.png",
+            mime_code: "image/png",
+            content: image_content
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should have two AdditionalDocumentReference elements
+      assert xml |> String.split("<cac:AdditionalDocumentReference>") |> length() == 3
+
+      # Check both attachments
+      assert String.contains?(xml, "filename=\"invoice.pdf\"")
+      assert String.contains?(xml, "mimeCode=\"application/pdf\"")
+      assert String.contains?(xml, "filename=\"logo.png\"")
+      assert String.contains?(xml, "mimeCode=\"image/png\"")
+    end
+
+    test "generates XML without attachments when not provided" do
+      params = %{
+        id: "INV-NO-ATTACH",
+        issue_datetime: "2025-05-01T12:00:00",
+        currency_code: "EUR",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "Company A d.o.o.",
+          postal_address: %{
+            street_name: "Street 1",
+            city_name: "Zagreb",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Company B d.o.o.",
+          postal_address: %{
+            street_name: "Street 2",
+            city_name: "Rijeka",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Product",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should NOT contain AdditionalDocumentReference
+      refute String.contains?(xml, "<cac:AdditionalDocumentReference>")
+      refute String.contains?(xml, "<cbc:EmbeddedDocumentBinaryObject")
+    end
   end
 end
