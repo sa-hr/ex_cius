@@ -1,10 +1,14 @@
 defmodule ExCius.Enums.TaxScheme do
   @moduledoc """
   Supported tax scheme IDs for UBL invoices.
+
+  - `:vat` - Standard VAT scheme (generates "VAT")
+  - `:fre` - Not in VAT system / VAT exempt supplier (generates "FRE")
   """
 
   @schemes %{
-    vat: "VAT"
+    vat: "VAT",
+    fre: "FRE"
   }
 
   def valid?(value) when is_atom(value), do: Map.has_key?(@schemes, value)
@@ -24,6 +28,10 @@ defmodule ExCius.Enums.TaxScheme do
   def code(:vat), do: "VAT"
   def code("vat"), do: "VAT"
   def code("VAT"), do: "VAT"
+  def code(:fre), do: "FRE"
+  def code("fre"), do: "FRE"
+  def code("FRE"), do: "FRE"
 
   def vat, do: :vat
+  def fre, do: :fre
 end

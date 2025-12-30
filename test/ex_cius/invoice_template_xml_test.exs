@@ -1285,6 +1285,216 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       end
     end
 
+    test "generates XML with HR tax extension for exempt invoices" do
+      params = %{
+        id: "EXEMPT-HR-EXT",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        delivery_date: "2025-09-25",
+        hr_tax_extension: true,
+        out_of_scope_amount: "0.00",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "0.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "0.00",
+              tax_category: %{
+                id: "exempt",
+                percent: 0,
+                tax_scheme_id: "vat",
+                tax_exemption_reason: "Oslobođeno PDV čl..."
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "100.00",
+          payable_amount: "100.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "exempt",
+                percent: 0,
+                tax_scheme_id: "vat",
+                tax_exemption_reason: "Oslobođeno PDV čl..."
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should contain HRFISK20Data with HRTaxTotal
+      assert String.contains?(xml, "<hrextac:HRFISK20Data>")
+      assert String.contains?(xml, "<hrextac:HRTaxTotal>")
+      assert String.contains?(xml, "<hrextac:HRTaxSubtotal>")
+      assert String.contains?(xml, "<hrextac:HRTaxCategory>")
+      assert String.contains?(xml, "<cbc:Name>HR:E</cbc:Name>")
+
+      assert String.contains?(
+               xml,
+               "<cbc:TaxExemptionReason>Oslobođeno PDV čl...</cbc:TaxExemptionReason>"
+             )
+
+      assert String.contains?(xml, "<hrextac:HRTaxScheme>")
+
+      # Should contain HRLegalMonetaryTotal
+      assert String.contains?(xml, "<hrextac:HRLegalMonetaryTotal>")
+      assert String.contains?(xml, "<hrextac:OutOfScopeOfVATAmount")
+    end
+
+    test "generates XML for not-in-VAT-system supplier with FRE tax scheme" do
+      params = %{
+        id: "NOT-IN-VAT",
+        issue_datetime: "2025-12-01T12:00:00",
+        currency_code: "EUR",
+        delivery_date: "2025-09-25",
+        hr_tax_extension: true,
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "TVRTKA A d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 1",
+            city_name: "ZAGREB",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "12345678901",
+            tax_scheme_id: "fre"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operater1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Tvrtka B d.o.o.",
+          postal_address: %{
+            street_name: "Ulica 2",
+            city_name: "RIJEKA",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "0.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "0.00",
+              tax_category: %{
+                id: "exempt",
+                percent: 0,
+                tax_scheme_id: "vat",
+                tax_exemption_reason: "Nije u sustavu PDV čl..."
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "100.00",
+          payable_amount: "100.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Proizvod",
+              classified_tax_category: %{
+                id: "exempt",
+                percent: 0,
+                tax_scheme_id: "vat",
+                tax_exemption_reason: "Nije u sustavu PDV čl..."
+              },
+              commodity_classification: %{
+                item_classification_code: "62.20.20",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Should have FRE tax scheme for supplier
+      assert String.contains?(xml, "<cbc:ID>FRE</cbc:ID>")
+
+      # Should contain HR extension
+      assert String.contains?(xml, "<hrextac:HRFISK20Data>")
+
+      assert String.contains?(
+               xml,
+               "<cbc:TaxExemptionReason>Nije u sustavu PDV čl...</cbc:TaxExemptionReason>"
+             )
+    end
+
     test "generates XML without VAT cash accounting extension when not provided" do
       params = %{
         id: "NO-VAT-CASH",

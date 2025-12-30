@@ -26,6 +26,8 @@ defmodule ExCius.RequestParams do
   - `:notes` - List of free-form notes (list of strings)
   - `:attachments` - List of embedded document attachments (list of maps)
   - `:vat_cash_accounting` - VAT cash accounting flag for Croatian "Obračun PDV po naplati" (boolean or string)
+  - `:hr_tax_extension` - Croatian HRFISK20Data tax extension for exempt/out-of-scope scenarios (boolean, generates HRTaxTotal)
+  - `:out_of_scope_amount` - Amount outside VAT scope for HRLegalMonetaryTotal extension (string, e.g., "0.00")
 
   ## Tax Category Structure
 

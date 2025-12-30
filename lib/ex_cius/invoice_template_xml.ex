@@ -197,6 +197,7 @@ defmodule ExCius.InvoiceTemplateXML do
   defp build_ubl_extensions(params) do
     extensions =
       [
+        build_hr_tax_extension(params),
         build_vat_cash_accounting_extension(params),
         element("ext:UBLExtension", [
           element("ext:ExtensionContent", [
@@ -210,6 +211,81 @@ defmodule ExCius.InvoiceTemplateXML do
 
     element("ext:UBLExtensions", extensions)
   end
+
+  # Builds the HRFISK20Data extension with HRTaxTotal and HRLegalMonetaryTotal
+  # Used for exempt (E) and not-in-VAT-system scenarios
+  defp build_hr_tax_extension(%{hr_tax_extension: true} = params) do
+    tax_total = params.tax_total
+    currency_id = params.currency_code
+    monetary_total = params.legal_monetary_total
+    out_of_scope = Map.get(params, :out_of_scope_amount, "0.00")
+
+    element("ext:UBLExtension", [
+      element("ext:ExtensionContent", [
+        element("hrextac:HRFISK20Data", [
+          build_hr_tax_total(tax_total, currency_id),
+          build_hr_legal_monetary_total(monetary_total, out_of_scope, currency_id)
+        ])
+      ])
+    ])
+  end
+
+  defp build_hr_tax_extension(_), do: nil
+
+  defp build_hr_tax_total(tax_total, currency_id) do
+    element("hrextac:HRTaxTotal", [
+      element("cbc:TaxAmount", [currencyID: currency_id], tax_total.tax_amount),
+      build_hr_tax_subtotals(tax_total.tax_subtotals, currency_id)
+    ])
+  end
+
+  defp build_hr_tax_subtotals(subtotals, currency_id) do
+    Enum.map(subtotals, fn subtotal ->
+      element("hrextac:HRTaxSubtotal", [
+        element("cbc:TaxableAmount", [currencyID: currency_id], subtotal.taxable_amount),
+        element("cbc:TaxAmount", [currencyID: currency_id], subtotal.tax_amount),
+        build_hr_tax_category(subtotal.tax_category)
+      ])
+    end)
+  end
+
+  defp build_hr_tax_category(tax_category) do
+    category_id = TaxCategory.code(tax_category.id)
+    scheme_id = TaxScheme.code(tax_category.tax_scheme_id)
+    tax_name = Map.get(tax_category, :name) || croatian_tax_name_for_category(category_id)
+
+    element(
+      "hrextac:HRTaxCategory",
+      [
+        element("cbc:ID", category_id),
+        build_tax_category_name(tax_name),
+        element("cbc:Percent", tax_category.percent),
+        build_tax_exemption_reason(Map.get(tax_category, :tax_exemption_reason)),
+        element("hrextac:HRTaxScheme", [
+          element("cbc:ID", scheme_id)
+        ])
+      ]
+      |> Enum.reject(&is_nil/1)
+    )
+  end
+
+  defp build_hr_legal_monetary_total(monetary_total, out_of_scope, currency_id) do
+    element("hrextac:HRLegalMonetaryTotal", [
+      element(
+        "cbc:TaxExclusiveAmount",
+        [currencyID: currency_id],
+        monetary_total.tax_exclusive_amount
+      ),
+      element("hrextac:OutOfScopeOfVATAmount", [currencyID: currency_id], out_of_scope)
+    ])
+  end
+
+  # Helper for HR extension tax category names
+  defp croatian_tax_name_for_category("E"), do: "HR:E"
+  defp croatian_tax_name_for_category("AE"), do: "HR:AE"
+  defp croatian_tax_name_for_category("Z"), do: "HR:Z"
+  defp croatian_tax_name_for_category("S"), do: nil
+  defp croatian_tax_name_for_category(_), do: nil
 
   # Builds the HRFISK20Data extension for VAT cash accounting ("Obračun PDV po naplati")
   # This is a Croatian-specific extension required when the supplier uses cash accounting for VAT.
@@ -621,8 +697,10 @@ defmodule ExCius.InvoiceTemplateXML do
   defp build_classified_tax_category(tax_category) do
     category_id = TaxCategory.code(tax_category.id)
     scheme_id = TaxScheme.code(tax_category.tax_scheme_id)
-    # Use explicitly provided name, or auto-generate Croatian tax name from percent
-    tax_name = Map.get(tax_category, :name) || croatian_tax_name(tax_category.percent)
+    # Use explicitly provided name, or auto-generate Croatian tax name from percent/category
+    tax_name =
+      Map.get(tax_category, :name) ||
+        croatian_tax_name(tax_category.percent, category_id)
 
     element(
       "cac:ClassifiedTaxCategory",
@@ -630,6 +708,7 @@ defmodule ExCius.InvoiceTemplateXML do
         element("cbc:ID", category_id),
         build_tax_category_name(tax_name),
         element("cbc:Percent", tax_category.percent),
+        build_tax_exemption_reason(Map.get(tax_category, :tax_exemption_reason)),
         element("cac:TaxScheme", [
           element("cbc:ID", scheme_id)
         ])
@@ -644,13 +723,16 @@ defmodule ExCius.InvoiceTemplateXML do
     element("cbc:Name", name)
   end
 
-  # Auto-generates Croatian tax category name based on VAT percentage
-  # HR:Z for 0%, HR:PDV5 for 5%, HR:PDV13 for 13%, HR:PDV25 for 25%
-  defp croatian_tax_name(percent) when percent == 0, do: "HR:Z"
-  defp croatian_tax_name(percent) when percent == 5, do: "HR:PDV5"
-  defp croatian_tax_name(percent) when percent == 13, do: "HR:PDV13"
-  defp croatian_tax_name(percent) when percent == 25, do: "HR:PDV25"
-  defp croatian_tax_name(_), do: nil
+  # Auto-generates Croatian tax category name based on VAT percentage and category
+  # Standard rates: HR:Z for 0%, HR:PDV5 for 5%, HR:PDV13 for 13%, HR:PDV25 for 25%
+  # Special categories: HR:E for exempt, HR:AE for reverse charge
+  defp croatian_tax_name(_percent, "E"), do: "HR:E"
+  defp croatian_tax_name(_percent, "AE"), do: "HR:AE"
+  defp croatian_tax_name(percent, _category) when percent == 0, do: "HR:Z"
+  defp croatian_tax_name(percent, _category) when percent == 5, do: "HR:PDV5"
+  defp croatian_tax_name(percent, _category) when percent == 13, do: "HR:PDV13"
+  defp croatian_tax_name(percent, _category) when percent == 25, do: "HR:PDV25"
+  defp croatian_tax_name(_, _), do: nil
 
   defp build_price(price, currency_id) do
     element(
