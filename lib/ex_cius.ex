@@ -3,7 +3,7 @@ defmodule ExCius do
   ExCius - A library for creating and parsing UBL 2.1 invoices compliant with Croatian e-Invoice (CIUS-2025) specification.
   """
 
-  alias ExCius.{RequestParams, InvoiceTemplateXML}
+  alias ExCius.{RequestParams, InvoiceTemplateXML, InvoiceUtils}
 
   def generate_invoice(invoice_data) when is_map(invoice_data) do
     case RequestParams.new(invoice_data) do
@@ -29,6 +29,99 @@ defmodule ExCius do
   end
 
   def validate_invoice(_), do: {:error, %{input: "must be a map"}}
+
+  @doc """
+  Checks if the given UBL Invoice XML is digitally signed.
+
+  Returns `{:ok, true}` if the invoice contains a digital signature,
+  `{:ok, false}` otherwise.
+
+  ## Parameters
+
+  - `xml` - UBL Invoice XML document as a string
+
+  ## Examples
+
+      iex> xml = File.read!("priv/examples/signed_with_pdf.xml")
+      iex> ExCius.signed?(xml)
+      {:ok, true}
+
+  """
+  def signed?(xml) when is_binary(xml) do
+    InvoiceUtils.signed?(xml)
+  end
+
+  def signed?(_), do: {:error, "Input must be an XML string"}
+
+  @doc """
+  Checks if the given UBL Invoice XML is digitally signed.
+
+  Returns `true` if signed, `false` otherwise. Raises on error.
+
+  ## Parameters
+
+  - `xml` - UBL Invoice XML document as a string
+
+  ## Examples
+
+      iex> xml = File.read!("priv/examples/signed_with_pdf.xml")
+      iex> ExCius.signed!(xml)
+      true
+
+  """
+  def signed!(xml) when is_binary(xml) do
+    InvoiceUtils.signed!(xml)
+  end
+
+  @doc """
+  Extracts all attachments from the given UBL Invoice XML.
+
+  Returns a list of attachment maps containing:
+  - `:id` - The document reference ID
+  - `:type` - Either `:embedded` or `:external`
+  - `:filename` - The filename (for embedded attachments)
+  - `:mime_type` - The MIME type (for embedded attachments)
+  - `:content` - The decoded binary content (for embedded attachments)
+  - `:uri` - The external URI (for external references)
+
+  ## Parameters
+
+  - `xml` - UBL Invoice XML document as a string
+
+  ## Examples
+
+      iex> xml = File.read!("priv/examples/signed_with_pdf.xml")
+      iex> {:ok, attachments} = ExCius.extract_attachments(xml)
+      iex> length(attachments)
+      1
+
+  """
+  def extract_attachments(xml) when is_binary(xml) do
+    InvoiceUtils.extract_attachments(xml)
+  end
+
+  def extract_attachments(_), do: {:error, "Input must be an XML string"}
+
+  @doc """
+  Extracts all attachments from the given UBL Invoice XML.
+
+  Returns a list of attachment maps. Raises on error.
+
+  ## Parameters
+
+  - `xml` - UBL Invoice XML document as a string
+
+  ## Examples
+
+      iex> xml = File.read!("priv/examples/signed_with_pdf.xml")
+      iex> attachments = ExCius.extract_attachments!(xml)
+      iex> length(attachments)
+      1
+
+  """
+  def extract_attachments!(xml) when is_binary(xml) do
+    InvoiceUtils.extract_attachments!(xml)
+  end
 
   def round_trip_test(invoice_data) when is_map(invoice_data) do
     with {:ok, xml} <- generate_invoice(invoice_data),
