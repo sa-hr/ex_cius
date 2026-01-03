@@ -54,6 +54,7 @@ defmodule ExCius.InvoiceXmlParserFixed do
       currency_code: extract_currency_code(doc),
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
+      billing_reference: extract_billing_reference(doc),
       supplier: extract_supplier(doc),
       customer: extract_customer(doc),
       payment_method: extract_payment_method(doc),
@@ -109,6 +110,36 @@ defmodule ExCius.InvoiceXmlParserFixed do
   defp extract_invoice_type_code(doc) do
     type_code = doc |> xpath(~x"//*[local-name()='InvoiceTypeCode']/text()"s)
     map_invoice_type_from_code(type_code)
+  end
+
+  # Extracts BillingReference (BG-3 - PRECEDING INVOICE REFERENCE)
+  # Used for credit notes (381), corrected invoices (384), and debit notes (383)
+  defp extract_billing_reference(doc) do
+    billing_ref_path = "//*[local-name()='BillingReference']"
+    invoice_doc_ref_path = "#{billing_ref_path}/*[local-name()='InvoiceDocumentReference']"
+
+    id = doc |> xpath(~x"#{invoice_doc_ref_path}/*[local-name()='ID']/text()"s)
+
+    case id do
+      "" ->
+        nil
+
+      _ ->
+        issue_date =
+          case doc |> xpath(~x"#{invoice_doc_ref_path}/*[local-name()='IssueDate']/text()"s) do
+            "" -> nil
+            date -> date
+          end
+
+        %{
+          invoice_document_reference:
+            %{
+              id: id,
+              issue_date: issue_date
+            }
+            |> filter_nil_values()
+        }
+    end
   end
 
   defp extract_supplier(doc) do
@@ -429,12 +460,27 @@ defmodule ExCius.InvoiceXmlParserFixed do
   end
 
   # Mapping functions
-  defp map_business_process_from_code("P1"), do: "billing"
+  # Map ProfileID codes to atom-friendly names
+  defp map_business_process_from_code("P1"), do: "p1"
+  defp map_business_process_from_code("P2"), do: "p2"
+  defp map_business_process_from_code("P3"), do: "p3"
+  defp map_business_process_from_code("P4"), do: "p4"
+  defp map_business_process_from_code("P5"), do: "p5"
+  defp map_business_process_from_code("P6"), do: "p6"
+  defp map_business_process_from_code("P7"), do: "p7"
+  defp map_business_process_from_code("P8"), do: "p8"
+  defp map_business_process_from_code("P9"), do: "p9"
+  defp map_business_process_from_code("P10"), do: "p10"
+  defp map_business_process_from_code("P11"), do: "p11"
+  defp map_business_process_from_code("P12"), do: "p12"
+  defp map_business_process_from_code("P99"), do: "p99"
   defp map_business_process_from_code(code), do: code
 
   defp map_invoice_type_from_code("380"), do: "commercial_invoice"
   defp map_invoice_type_from_code("381"), do: "credit_note"
+  defp map_invoice_type_from_code("383"), do: "debit_note"
   defp map_invoice_type_from_code("384"), do: "corrected_invoice"
+  defp map_invoice_type_from_code("386"), do: "prepayment_invoice"
   defp map_invoice_type_from_code("389"), do: "self_billing_invoice"
   defp map_invoice_type_from_code("751"), do: "invoice_information_for_accounting_purposes"
   defp map_invoice_type_from_code(code), do: code

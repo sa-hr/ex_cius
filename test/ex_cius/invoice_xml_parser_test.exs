@@ -121,7 +121,7 @@ defmodule ExCius.InvoiceXmlParserTest do
       assert parsed_params.supplier.seller_contact.id == "51634872748"
       assert parsed_params.supplier.seller_contact.name == "Operater1"
       assert parsed_params.due_date == "2025-05-31"
-      assert parsed_params.business_process == "billing"
+      assert parsed_params.business_process == "p1"
       assert parsed_params.invoice_type_code == "commercial_invoice"
 
       # Verify supplier data
@@ -215,6 +215,206 @@ defmodule ExCius.InvoiceXmlParserTest do
       assert length(parsed_params.notes) == 2
       assert "Napomena o računu" in parsed_params.notes
       assert "Dodatne informacije" in parsed_params.notes
+    end
+
+    test "parses credit note with billing reference" do
+      # Generate a credit note with billing reference
+      params = %{
+        id: "CN-2025-001",
+        issue_datetime: "2025-06-01T10:30:00",
+        currency_code: "EUR",
+        invoice_type_code: :credit_note,
+        business_process: :p9,
+        billing_reference: %{
+          invoice_document_reference: %{
+            id: "INV-2025-001",
+            issue_date: ~D[2025-05-01]
+          }
+        },
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "Company A d.o.o.",
+          postal_address: %{
+            street_name: "Street 1",
+            city_name: "Zagreb",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Company B d.o.o.",
+          postal_address: %{
+            street_name: "Street 2",
+            city_name: "Rijeka",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "-25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "-100.00",
+              tax_amount: "-25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "-100.00",
+          tax_exclusive_amount: "-100.00",
+          tax_inclusive_amount: "-125.00",
+          payable_amount: "-125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "-100.00",
+            item: %{
+              name: "Return: Product",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Parse the generated XML
+      {:ok, parsed} = InvoiceXmlParserFixed.parse(xml)
+
+      # Verify billing reference is parsed correctly
+      assert parsed.billing_reference != nil
+      assert parsed.billing_reference.invoice_document_reference.id == "INV-2025-001"
+      assert parsed.billing_reference.invoice_document_reference.issue_date == "2025-05-01"
+
+      # Verify invoice type and profile
+      assert parsed.invoice_type_code == "credit_note"
+      assert parsed.business_process == "p9"
+    end
+
+    test "parses invoice without billing reference" do
+      # Standard invoice without billing reference
+      params = %{
+        id: "INV-2025-001",
+        issue_datetime: "2025-05-01T12:00:00",
+        currency_code: "EUR",
+        supplier: %{
+          oib: "12345678901",
+          registration_name: "Company A d.o.o.",
+          postal_address: %{
+            street_name: "Street 1",
+            city_name: "Zagreb",
+            postal_zone: "10000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR12345678901",
+            tax_scheme_id: "vat"
+          },
+          seller_contact: %{
+            id: "12345678901",
+            name: "Operator1"
+          }
+        },
+        customer: %{
+          oib: "11111111119",
+          registration_name: "Company B d.o.o.",
+          postal_address: %{
+            street_name: "Street 2",
+            city_name: "Rijeka",
+            postal_zone: "51000",
+            country_code: "HR"
+          },
+          party_tax_scheme: %{
+            company_id: "HR11111111119",
+            tax_scheme_id: "vat"
+          }
+        },
+        tax_total: %{
+          tax_amount: "25.00",
+          tax_subtotals: [
+            %{
+              taxable_amount: "100.00",
+              tax_amount: "25.00",
+              tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              }
+            }
+          ]
+        },
+        legal_monetary_total: %{
+          line_extension_amount: "100.00",
+          tax_exclusive_amount: "100.00",
+          tax_inclusive_amount: "125.00",
+          payable_amount: "125.00"
+        },
+        invoice_lines: [
+          %{
+            id: "1",
+            quantity: 1.0,
+            unit_code: "piece",
+            line_extension_amount: "100.00",
+            item: %{
+              name: "Product",
+              classified_tax_category: %{
+                id: "standard_rate",
+                percent: 25,
+                tax_scheme_id: "vat"
+              },
+              commodity_classification: %{
+                item_classification_code: "73211200",
+                list_id: "CG"
+              }
+            },
+            price: %{
+              price_amount: "100.00"
+            }
+          }
+        ]
+      }
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      # Parse the generated XML
+      {:ok, parsed} = InvoiceXmlParserFixed.parse(xml)
+
+      # Verify no billing reference
+      assert parsed[:billing_reference] == nil
     end
 
     test "parses minimal UBL Invoice XML without optional fields" do

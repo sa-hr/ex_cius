@@ -183,6 +183,7 @@ defmodule ExCius.InvoiceTemplateXML do
         build_invoice_type_code(params),
         build_notes(params),
         build_document_currency_code(params),
+        build_billing_reference(params),
         build_additional_document_references(params),
         build_accounting_supplier_party(params),
         build_accounting_customer_party(params),
@@ -316,7 +317,38 @@ defmodule ExCius.InvoiceTemplateXML do
 
   defp build_vat_cash_accounting_extension(_), do: nil
 
-  # Builds AdditionalDocumentReference elements for embedded attachments.
+  # Builds BillingReference element (BG-3 - PRECEDING INVOICE REFERENCE)
+  # Required for credit notes (381), corrected invoices (384), and debit notes (383)
+  defp build_billing_reference(%{billing_reference: nil}), do: nil
+
+  defp build_billing_reference(%{billing_reference: %{invoice_document_reference: doc_ref}}) do
+    element("cac:BillingReference", [
+      element(
+        "cac:InvoiceDocumentReference",
+        [
+          element("cbc:ID", doc_ref.id),
+          build_billing_reference_issue_date(doc_ref[:issue_date])
+        ]
+        |> Enum.reject(&is_nil/1)
+      )
+    ])
+  end
+
+  defp build_billing_reference(_), do: nil
+
+  defp build_billing_reference_issue_date(nil), do: nil
+
+  defp build_billing_reference_issue_date(%Date{} = date) do
+    element("cbc:IssueDate", Date.to_iso8601(date))
+  end
+
+  defp build_billing_reference_issue_date(date) when is_binary(date) do
+    element("cbc:IssueDate", date)
+  end
+
+  defp build_billing_reference_issue_date(_), do: nil
+
+  # Builds AdditionalDocumentReference elements for embedded attachments
   # Each attachment is embedded as a base64-encoded binary object within the invoice XML.
   # This is commonly used to embed PDF visualizations of the invoice.
   defp build_additional_document_references(%{attachments: nil}), do: nil

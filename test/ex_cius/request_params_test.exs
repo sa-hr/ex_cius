@@ -335,10 +335,11 @@ defmodule ExCius.RequestParamsTest do
       assert errors.payable_amount =~ "valid decimal"
     end
 
-    test "returns error for negative amount" do
+    test "accepts negative amounts for credit notes" do
+      # Negative amounts are valid for credit notes and corrective invoices
       params = put_in(valid_params(), [:legal_monetary_total, :payable_amount], "-10.00")
-      assert {:error, %{legal_monetary_total: errors}} = RequestParams.new(params)
-      assert errors.payable_amount =~ "valid decimal"
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.legal_monetary_total.payable_amount == "-10.00"
     end
   end
 
@@ -604,6 +605,141 @@ defmodule ExCius.RequestParamsTest do
       params = Map.put(valid_params(), :vat_cash_accounting, 123)
       assert {:error, errors} = RequestParams.new(params)
       assert errors[:vat_cash_accounting] == "must be a boolean or string"
+    end
+  end
+
+  describe "billing_reference validation" do
+    test "accepts valid billing_reference" do
+      params =
+        valid_params()
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{
+            id: "INV-2024-001",
+            issue_date: "2024-12-15"
+          }
+        })
+
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.billing_reference.invoice_document_reference.id == "INV-2024-001"
+    end
+
+    test "accepts billing_reference without issue_date" do
+      params =
+        valid_params()
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{
+            id: "INV-2024-001"
+          }
+        })
+
+      assert {:ok, _validated} = RequestParams.new(params)
+    end
+
+    test "accepts nil billing_reference for commercial invoice" do
+      params = valid_params()
+      assert {:ok, _validated} = RequestParams.new(params)
+    end
+
+    test "requires billing_reference for credit_note (381)" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :credit_note)
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert errors[:billing_reference] =~ "is required for credit notes"
+    end
+
+    test "requires billing_reference for corrected_invoice (384)" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :corrected_invoice)
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert errors[:billing_reference] =~ "is required for"
+    end
+
+    test "requires billing_reference for debit_note (383)" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :debit_note)
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert errors[:billing_reference] =~ "is required for"
+    end
+
+    test "accepts credit_note with billing_reference" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :credit_note)
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{
+            id: "INV-2024-001",
+            issue_date: "2024-12-15"
+          }
+        })
+
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.invoice_type_code == "381"
+      assert validated.billing_reference.invoice_document_reference.id == "INV-2024-001"
+    end
+
+    test "rejects billing_reference with missing id" do
+      params =
+        valid_params()
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{
+            issue_date: "2024-12-15"
+          }
+        })
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert errors[:billing_reference][:invoice_document_reference_id] == "is required"
+    end
+
+    test "rejects billing_reference with empty id" do
+      params =
+        valid_params()
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{
+            id: "",
+            issue_date: "2024-12-15"
+          }
+        })
+
+      assert {:error, errors} = RequestParams.new(params)
+
+      assert errors[:billing_reference][:invoice_document_reference_id] ==
+               "must be a non-empty string"
+    end
+
+    test "rejects billing_reference with invalid date format" do
+      params =
+        valid_params()
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{
+            id: "INV-001",
+            issue_date: "not-a-date"
+          }
+        })
+
+      assert {:error, errors} = RequestParams.new(params)
+
+      assert errors[:billing_reference][:invoice_document_reference_issue_date] ==
+               "must be a valid date"
+    end
+
+    test "accepts billing_reference with string keys" do
+      params =
+        valid_params()
+        |> Map.put(:billing_reference, %{
+          "invoice_document_reference" => %{
+            "id" => "INV-2024-001",
+            "issue_date" => "2024-12-15"
+          }
+        })
+
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.billing_reference.invoice_document_reference.id == "INV-2024-001"
     end
   end
 end

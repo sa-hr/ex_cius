@@ -18,7 +18,7 @@ defmodule ExCius.RequestParams do
 
   ## Optional Fields
 
-  - `:business_process` - Business process, defaults to "billing" (atom/string)
+  - `:business_process` - Business process, defaults to :p1 (atom/string). See `ExCius.Enums.BusinessProcess` for all values (P1-P12, P99)
   - `:invoice_type_code` - Type of invoice, defaults to "commercial_invoice" (atom/string)
   - `:due_date` - Payment due date (Date or ISO 8601 string)
   - `:delivery_date` - Actual delivery date (Date or ISO 8601 string)
@@ -26,9 +26,18 @@ defmodule ExCius.RequestParams do
   - `:notes` - List of free-form notes (list of strings)
   - `:attachments` - List of embedded document attachments (list of maps)
   - `:allowance_charges` - List of document-level allowances/charges (list of maps)
+  - `:billing_reference` - Reference to preceding invoice (map), required for credit notes (381), corrected invoices (384), and debit notes (383)
   - `:vat_cash_accounting` - VAT cash accounting flag for Croatian "Obračun PDV po naplati" (boolean or string)
   - `:hr_tax_extension` - Croatian HRFISK20Data tax extension for exempt/out-of-scope scenarios (boolean, generates HRTaxTotal)
   - `:out_of_scope_amount` - Amount outside VAT scope for HRLegalMonetaryTotal extension (string, e.g., "0.00")
+
+  ## Billing Reference Structure (BG-3)
+
+  Required for Corrective Invoices (P10/384), Credit Notes (381), and Debit Notes (383).
+  The `:billing_reference` map must contain:
+  - `:invoice_document_reference` - A map with:
+    - `:id` - The number/identifier of the original invoice being referenced (required)
+    - `:issue_date` - The issue date of the original invoice (optional, Date or ISO 8601 string)
 
   ## Allowance/Charge Structure (Document Level)
 
@@ -88,6 +97,7 @@ defmodule ExCius.RequestParams do
   """
 
   alias ExCius.AllowanceCharge
+  alias ExCius.BillingReference
 
   alias ExCius.Enums.{
     BusinessProcess,
@@ -270,7 +280,9 @@ defmodule ExCius.RequestParams do
          {:ok, _} <- validate_notes(params[:notes]),
          {:ok, _} <- validate_attachments(params[:attachments]),
          {:ok, _} <- validate_vat_cash_accounting(params[:vat_cash_accounting]),
-         {:ok, _} <- validate_allowance_charges(params[:allowance_charges]) do
+         {:ok, _} <- validate_allowance_charges(params[:allowance_charges]),
+         {:ok, _} <-
+           validate_billing_reference(params[:billing_reference], params[:invoice_type_code]) do
       {:ok, params}
     end
   end
@@ -295,6 +307,7 @@ defmodule ExCius.RequestParams do
     |> Map.update(:invoice_lines, [], &atomize_invoice_lines/1)
     |> Map.update(:attachments, nil, &atomize_attachments/1)
     |> Map.update(:allowance_charges, nil, &atomize_allowance_charges/1)
+    |> Map.update(:billing_reference, nil, &atomize_billing_reference/1)
   end
 
   defp atomize_map(nil), do: nil
@@ -366,15 +379,42 @@ defmodule ExCius.RequestParams do
   defp atomize_item(value), do: value
 
   defp set_defaults(params) do
+    # Convert invoice_type_code to string code if it's an atom
+    invoice_type_code =
+      case params[:invoice_type_code] do
+        nil ->
+          InvoiceTypeCode.code(InvoiceTypeCode.default())
+
+        code when is_atom(code) ->
+          InvoiceTypeCode.code(code) || InvoiceTypeCode.code(InvoiceTypeCode.default())
+
+        code when is_binary(code) ->
+          code
+      end
+
+    # Convert business_process to string code if it's an atom
+    profile_id =
+      case params[:business_process] do
+        nil ->
+          BusinessProcess.code(BusinessProcess.default())
+
+        code when is_atom(code) ->
+          BusinessProcess.code(code) || BusinessProcess.code(BusinessProcess.default())
+
+        code when is_binary(code) ->
+          code
+      end
+
     defaults = %{
-      profile_id: params[:business_process] || BusinessProcess.code(BusinessProcess.default()),
-      invoice_type_code:
-        params[:invoice_type_code] || InvoiceTypeCode.code(InvoiceTypeCode.default()),
+      profile_id: profile_id,
+      invoice_type_code: invoice_type_code,
       document_currency_code: params[:currency_code] || Currency.code(Currency.default())
     }
 
     defaults
     |> Map.merge(params)
+    |> Map.put(:invoice_type_code, invoice_type_code)
+    |> Map.put(:profile_id, profile_id)
     |> parse_issue_datetime()
   end
 
@@ -481,29 +521,29 @@ defmodule ExCius.RequestParams do
 
   defp validate_optional_business_process(nil), do: :ok
 
-  defp validate_optional_business_process(value) when is_binary(value) do
+  defp validate_optional_business_process(value) when is_binary(value) or is_atom(value) do
     if BusinessProcess.valid?(value) do
       :ok
     else
       {:error,
-       "must be one of: #{Enum.join(Enum.map(BusinessProcess.values(), &BusinessProcess.code/1), ", ")}"}
+       "must be one of: #{Enum.join(Enum.map(BusinessProcess.values(), &to_string/1), ", ")}"}
     end
   end
 
-  defp validate_optional_business_process(_), do: {:error, "must be a non-empty string"}
+  defp validate_optional_business_process(_), do: {:error, "must be a string or atom"}
 
   defp validate_invoice_type_code(nil), do: :ok
 
-  defp validate_invoice_type_code(value) when is_binary(value) do
+  defp validate_invoice_type_code(value) when is_binary(value) or is_atom(value) do
     if InvoiceTypeCode.valid?(value) do
       :ok
     else
       {:error,
-       "must be one of: #{Enum.join(Enum.map(InvoiceTypeCode.values(), &InvoiceTypeCode.code/1), ", ")}"}
+       "must be one of: #{Enum.join(Enum.map(InvoiceTypeCode.values(), &to_string/1), ", ")}"}
     end
   end
 
-  defp validate_invoice_type_code(_), do: {:error, "must be a valid invoice type code string"}
+  defp validate_invoice_type_code(_), do: {:error, "must be a valid invoice type code"}
 
   defp validate_supplier(supplier) when is_map(supplier) do
     missing_fields =
@@ -1125,13 +1165,13 @@ defmodule ExCius.RequestParams do
 
   defp validate_amount(value) when is_binary(value) do
     case Float.parse(value) do
-      {float, ""} when float >= 0 -> :ok
+      {_float, ""} -> :ok
       _ -> {:error, "must be a valid decimal string"}
     end
   end
 
-  defp validate_amount(value) when is_number(value) and value >= 0, do: :ok
-  defp validate_amount(_), do: {:error, "must be a non-negative number or decimal string"}
+  defp validate_amount(value) when is_number(value), do: :ok
+  defp validate_amount(_), do: {:error, "must be a number or decimal string"}
 
   defp missing_field_errors(fields) do
     Enum.map(fields, fn field -> {field, "is required"} end)
@@ -1169,6 +1209,16 @@ defmodule ExCius.RequestParams do
   end
 
   defp atomize_allowance_charges(value), do: value
+
+  defp atomize_billing_reference(nil), do: nil
+
+  defp atomize_billing_reference(billing_ref) when is_map(billing_ref) do
+    billing_ref
+    |> atomize_map()
+    |> Map.update(:invoice_document_reference, nil, &atomize_map/1)
+  end
+
+  defp atomize_billing_reference(value), do: value
 
   defp atomize_line_allowance_charges(nil), do: nil
 
@@ -1291,6 +1341,31 @@ defmodule ExCius.RequestParams do
 
   defp validate_allowance_charges(_) do
     {:error, %{allowance_charges: "must be a list"}}
+  end
+
+  # Validates the optional billing reference (BG-3 - PRECEDING INVOICE REFERENCE)
+  # Required for credit notes (381), corrected invoices (384), and debit notes (383)
+  defp validate_billing_reference(nil, invoice_type_code) do
+    if BillingReference.required_for_invoice_type?(invoice_type_code) do
+      {:error,
+       %{
+         billing_reference:
+           "is required for credit notes (381), corrected invoices (384), and debit notes (383)"
+       }}
+    else
+      {:ok, nil}
+    end
+  end
+
+  defp validate_billing_reference(billing_ref, _invoice_type_code) when is_map(billing_ref) do
+    case BillingReference.validate(billing_ref) do
+      :ok -> {:ok, billing_ref}
+      {:error, errors} -> {:error, %{billing_reference: errors}}
+    end
+  end
+
+  defp validate_billing_reference(_, _) do
+    {:error, %{billing_reference: "must be a map"}}
   end
 
   defp add_error(errors, _field, :ok), do: errors
