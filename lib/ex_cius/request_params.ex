@@ -25,9 +25,31 @@ defmodule ExCius.RequestParams do
   - `:payment_method` - Payment information (map)
   - `:notes` - List of free-form notes (list of strings)
   - `:attachments` - List of embedded document attachments (list of maps)
+  - `:allowance_charges` - List of document-level allowances/charges (list of maps)
   - `:vat_cash_accounting` - VAT cash accounting flag for Croatian "Obračun PDV po naplati" (boolean or string)
   - `:hr_tax_extension` - Croatian HRFISK20Data tax extension for exempt/out-of-scope scenarios (boolean, generates HRTaxTotal)
   - `:out_of_scope_amount` - Amount outside VAT scope for HRLegalMonetaryTotal extension (string, e.g., "0.00")
+
+  ## Allowance/Charge Structure (Document Level)
+
+  Each allowance/charge in the `:allowance_charges` list requires:
+  - `:charge_indicator` - Boolean. `false` = Discount/Allowance, `true` = Charge/Surcharge (required)
+  - `:amount` - Decimal string for the total amount (required)
+  - `:allowance_charge_reason_code` - Code from UNTDID 5189 (allowances) or 7161 (charges) (optional)
+  - `:allowance_charge_reason` - Text description (optional)
+  - `:multiplier_factor_numeric` - Percentage as decimal (optional)
+  - `:base_amount` - Base amount the percentage applies to (optional)
+  - `:tax_category` - Tax category map (required for document level):
+    - `:id` - Tax category code (e.g., :standard_rate, :exempt, :outside_scope)
+    - `:percent` - Tax percentage
+    - `:tax_scheme_id` - Tax scheme (e.g., :vat)
+    - `:tax_exemption_reason` - (optional) Reason for exemption (Croatian HR extension)
+    - `:tax_exemption_reason_code` - (optional) Code for exemption reason
+
+  ## Allowance/Charge Structure (Line Level)
+
+  Line-level allowances/charges in invoice lines use the same structure but WITHOUT `:tax_category`
+  (they inherit tax settings from the line item). Add them as `:allowance_charges` within each invoice line.
 
   ## Tax Category Structure
 
@@ -64,6 +86,8 @@ defmodule ExCius.RequestParams do
   - `:postal_address` - Address map with `:street_name`, `:city_name`, `:postal_zone`, `:country_code`
   - `:party_tax_scheme` - Tax scheme map with `:company_id`, `:tax_scheme_id`
   """
+
+  alias ExCius.AllowanceCharge
 
   alias ExCius.Enums.{
     BusinessProcess,
@@ -245,7 +269,8 @@ defmodule ExCius.RequestParams do
          {:ok, _} <- validate_invoice_lines(params.invoice_lines, params.currency_code),
          {:ok, _} <- validate_notes(params[:notes]),
          {:ok, _} <- validate_attachments(params[:attachments]),
-         {:ok, _} <- validate_vat_cash_accounting(params[:vat_cash_accounting]) do
+         {:ok, _} <- validate_vat_cash_accounting(params[:vat_cash_accounting]),
+         {:ok, _} <- validate_allowance_charges(params[:allowance_charges]) do
       {:ok, params}
     end
   end
@@ -269,6 +294,7 @@ defmodule ExCius.RequestParams do
     |> Map.update(:payment_method, nil, &atomize_payment_method/1)
     |> Map.update(:invoice_lines, [], &atomize_invoice_lines/1)
     |> Map.update(:attachments, nil, &atomize_attachments/1)
+    |> Map.update(:allowance_charges, nil, &atomize_allowance_charges/1)
   end
 
   defp atomize_map(nil), do: nil
@@ -324,6 +350,7 @@ defmodule ExCius.RequestParams do
       |> atomize_map()
       |> Map.update(:item, %{}, &atomize_item/1)
       |> Map.update(:price, %{}, &atomize_map/1)
+      |> Map.update(:allowance_charges, nil, &atomize_line_allowance_charges/1)
     end)
   end
 
@@ -938,6 +965,10 @@ defmodule ExCius.RequestParams do
           |> add_error(:line_extension_amount, validate_amount(line.line_extension_amount))
           |> add_error(:item, validate_item(line.item))
           |> add_error(:price, validate_price(line.price))
+          |> add_error(
+            :allowance_charges,
+            validate_line_allowance_charges(line[:allowance_charges])
+          )
 
         if Enum.empty?(errors) do
           {:ok, line}
@@ -951,6 +982,18 @@ defmodule ExCius.RequestParams do
   end
 
   defp validate_invoice_line(_, _), do: {:error, "must be a map"}
+
+  defp validate_line_allowance_charges(nil), do: :ok
+  defp validate_line_allowance_charges([]), do: :ok
+
+  defp validate_line_allowance_charges(allowance_charges) when is_list(allowance_charges) do
+    case AllowanceCharge.validate_line_level_list(allowance_charges) do
+      {:ok, _} -> :ok
+      {:error, errors} -> {:error, errors}
+    end
+  end
+
+  defp validate_line_allowance_charges(_), do: {:error, "must be a list"}
 
   defp validate_line_id(value) when is_binary(value) and byte_size(value) > 0, do: :ok
   defp validate_line_id(value) when is_integer(value), do: :ok
@@ -1115,6 +1158,26 @@ defmodule ExCius.RequestParams do
 
   defp atomize_attachments(value), do: value
 
+  defp atomize_allowance_charges(nil), do: nil
+
+  defp atomize_allowance_charges(allowance_charges) when is_list(allowance_charges) do
+    Enum.map(allowance_charges, fn ac ->
+      ac
+      |> atomize_map()
+      |> Map.update(:tax_category, nil, &atomize_map/1)
+    end)
+  end
+
+  defp atomize_allowance_charges(value), do: value
+
+  defp atomize_line_allowance_charges(nil), do: nil
+
+  defp atomize_line_allowance_charges(allowance_charges) when is_list(allowance_charges) do
+    Enum.map(allowance_charges, &atomize_map/1)
+  end
+
+  defp atomize_line_allowance_charges(value), do: value
+
   defp validate_attachments(nil), do: {:ok, nil}
 
   defp validate_attachments(attachments) when is_list(attachments) do
@@ -1212,8 +1275,23 @@ defmodule ExCius.RequestParams do
   defp validate_vat_cash_accounting(""),
     do: {:error, %{vat_cash_accounting: "must be a boolean or non-empty string when provided"}}
 
-  defp validate_vat_cash_accounting(_),
-    do: {:error, %{vat_cash_accounting: "must be a boolean or non-empty string"}}
+  defp validate_vat_cash_accounting(_) do
+    {:error, %{vat_cash_accounting: "must be a boolean or string"}}
+  end
+
+  defp validate_allowance_charges(nil), do: {:ok, nil}
+  defp validate_allowance_charges([]), do: {:ok, []}
+
+  defp validate_allowance_charges(allowance_charges) when is_list(allowance_charges) do
+    case AllowanceCharge.validate_document_level_list(allowance_charges) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, errors} -> {:error, %{allowance_charges: errors}}
+    end
+  end
+
+  defp validate_allowance_charges(_) do
+    {:error, %{allowance_charges: "must be a list"}}
+  end
 
   defp add_error(errors, _field, :ok), do: errors
 

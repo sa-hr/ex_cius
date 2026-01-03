@@ -603,7 +603,7 @@ defmodule ExCius.RequestParamsTest do
     test "rejects invalid type for vat_cash_accounting" do
       params = Map.put(valid_params(), :vat_cash_accounting, 123)
       assert {:error, errors} = RequestParams.new(params)
-      assert errors[:vat_cash_accounting] == "must be a boolean or non-empty string"
+      assert errors[:vat_cash_accounting] == "must be a boolean or string"
     end
   end
 end

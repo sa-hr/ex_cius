@@ -1,6 +1,8 @@
 defmodule ExCius.InvoiceTemplateXML do
   import XmlBuilder
 
+  alias ExCius.AllowanceChargeXML
+
   alias ExCius.Enums.{
     BusinessProcess,
     InvoiceTypeCode,
@@ -186,6 +188,7 @@ defmodule ExCius.InvoiceTemplateXML do
         build_accounting_customer_party(params),
         build_delivery(params),
         build_payment_means(params),
+        build_allowance_charges(params),
         build_tax_total(params),
         build_legal_monetary_total(params),
         build_invoice_lines(params)
@@ -559,6 +562,19 @@ defmodule ExCius.InvoiceTemplateXML do
 
   defp build_delivery(_), do: nil
 
+  # Document-level allowances and charges
+  defp build_allowance_charges(%{allowance_charges: nil}), do: nil
+  defp build_allowance_charges(%{allowance_charges: []}), do: nil
+
+  defp build_allowance_charges(%{
+         allowance_charges: allowance_charges,
+         currency_code: currency_id
+       }) do
+    AllowanceChargeXML.build_document_level_list(allowance_charges, currency_id)
+  end
+
+  defp build_allowance_charges(_), do: nil
+
   defp build_payment_means(params) do
     case Map.get(params, :payment_method) do
       nil ->
@@ -654,15 +670,35 @@ defmodule ExCius.InvoiceTemplateXML do
     currency_id = params.currency_code
 
     Enum.map(params.invoice_lines, fn line ->
-      element("cac:InvoiceLine", [
-        element("cbc:ID", line.id),
-        build_invoiced_quantity(line),
-        element("cbc:LineExtensionAmount", [currencyID: currency_id], line.line_extension_amount),
-        build_item(line.item, currency_id),
-        build_price(line.price, currency_id)
-      ])
+      element(
+        "cac:InvoiceLine",
+        [
+          element("cbc:ID", line.id),
+          build_invoiced_quantity(line),
+          element(
+            "cbc:LineExtensionAmount",
+            [currencyID: currency_id],
+            line.line_extension_amount
+          ),
+          build_line_allowance_charges(line, currency_id),
+          build_item(line.item, currency_id),
+          build_price(line.price, currency_id)
+        ]
+        |> List.flatten()
+        |> Enum.reject(&is_nil/1)
+      )
     end)
   end
+
+  # Line-level allowances and charges (no TaxCategory)
+  defp build_line_allowance_charges(%{allowance_charges: nil}, _currency_id), do: nil
+  defp build_line_allowance_charges(%{allowance_charges: []}, _currency_id), do: nil
+
+  defp build_line_allowance_charges(%{allowance_charges: allowance_charges}, currency_id) do
+    AllowanceChargeXML.build_line_level_list(allowance_charges, currency_id)
+  end
+
+  defp build_line_allowance_charges(_, _), do: nil
 
   defp build_invoiced_quantity(line) do
     unit_code = UnitCode.code(line.unit_code)
