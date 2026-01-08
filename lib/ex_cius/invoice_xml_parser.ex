@@ -78,6 +78,8 @@ defmodule ExCius.InvoiceXmlParser do
       issue_datetime: extract_issue_datetime(doc),
       due_date: extract_due_date(doc),
       delivery_date: extract_delivery_date(doc),
+      invoice_period_start: extract_invoice_period_start(doc),
+      invoice_period_end: extract_invoice_period_end(doc),
       currency_code: extract_currency_code(doc),
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
@@ -119,6 +121,22 @@ defmodule ExCius.InvoiceXmlParser do
   defp extract_delivery_date(doc) do
     case doc
          |> xpath(~x"//*[local-name()='Delivery']/*[local-name()='ActualDeliveryDate']/text()"s) do
+      "" -> nil
+      date -> date
+    end
+  end
+
+  defp extract_invoice_period_start(doc) do
+    case doc
+         |> xpath(~x"//*[local-name()='InvoicePeriod']/*[local-name()='StartDate']/text()"s) do
+      "" -> nil
+      date -> date
+    end
+  end
+
+  defp extract_invoice_period_end(doc) do
+    case doc
+         |> xpath(~x"//*[local-name()='InvoicePeriod']/*[local-name()='EndDate']/text()"s) do
       "" -> nil
       date -> date
     end

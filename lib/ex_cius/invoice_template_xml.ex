@@ -183,6 +183,7 @@ defmodule ExCius.InvoiceTemplateXML do
         build_invoice_type_code(params),
         build_notes(params),
         build_document_currency_code(params),
+        build_invoice_period(params),
         build_billing_reference(params),
         build_additional_document_references(params),
         build_accounting_supplier_party(params),
@@ -426,6 +427,23 @@ defmodule ExCius.InvoiceTemplateXML do
   defp build_document_currency_code(params) do
     element("cbc:DocumentCurrencyCode", params.currency_code)
   end
+
+  # Builds the InvoicePeriod element for date ranges
+  defp build_invoice_period(%{invoice_period_start: nil, invoice_period_end: nil}), do: nil
+  defp build_invoice_period(%{invoice_period_start: nil}), do: nil
+  defp build_invoice_period(%{invoice_period_end: nil}), do: nil
+
+  defp build_invoice_period(%{invoice_period_start: start_date, invoice_period_end: end_date}) do
+    element("cac:InvoicePeriod", [
+      element("cbc:StartDate", format_date(start_date)),
+      element("cbc:EndDate", format_date(end_date))
+    ])
+  end
+
+  defp build_invoice_period(_), do: nil
+
+  defp format_date(%Date{} = date), do: Date.to_iso8601(date)
+  defp format_date(date) when is_binary(date), do: date
 
   defp build_notes(params) do
     # Generate mandatory operator note per Croatian specification

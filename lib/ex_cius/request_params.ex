@@ -22,6 +22,8 @@ defmodule ExCius.RequestParams do
   - `:invoice_type_code` - Type of invoice, defaults to "commercial_invoice" (atom/string)
   - `:due_date` - Payment due date (Date or ISO 8601 string)
   - `:delivery_date` - Actual delivery date (Date or ISO 8601 string)
+  - `:invoice_period_start` - Invoice period start date (Date or ISO 8601 string)
+  - `:invoice_period_end` - Invoice period end date (Date or ISO 8601 string)
   - `:payment_method` - Payment information (map)
   - `:notes` - List of free-form notes (list of strings)
   - `:attachments` - List of embedded document attachments (list of maps)
@@ -472,6 +474,12 @@ defmodule ExCius.RequestParams do
       |> add_error(:issue_datetime, validate_issue_datetime(params))
       |> add_error(:due_date, validate_optional_date(params[:due_date]))
       |> add_error(:delivery_date, validate_optional_date(params[:delivery_date]))
+      |> add_error(:invoice_period_start, validate_optional_date(params[:invoice_period_start]))
+      |> add_error(:invoice_period_end, validate_optional_date(params[:invoice_period_end]))
+      |> add_error(
+        :invoice_period,
+        validate_invoice_period(params[:invoice_period_start], params[:invoice_period_end])
+      )
       |> add_error(:currency_code, validate_currency_code(params.currency_code))
       |> add_error(:invoice_type_code, validate_invoice_type_code(params[:invoice_type_code]))
       |> add_error(
@@ -501,6 +509,17 @@ defmodule ExCius.RequestParams do
 
   defp validate_optional_date(nil), do: :ok
   defp validate_optional_date(value), do: validate_date(value)
+
+  # Validates invoice period: if one date is provided, the other must also be provided
+  defp validate_invoice_period(nil, nil), do: :ok
+
+  defp validate_invoice_period(nil, _end_date),
+    do: {:error, "invoice_period_start is required when invoice_period_end is provided"}
+
+  defp validate_invoice_period(_start_date, nil),
+    do: {:error, "invoice_period_end is required when invoice_period_start is provided"}
+
+  defp validate_invoice_period(_start_date, _end_date), do: :ok
 
   defp validate_issue_datetime(%{issue_date: %Date{}, issue_time: %Time{}}), do: :ok
 
