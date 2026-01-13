@@ -708,12 +708,34 @@ defmodule ExCius.InvoiceTemplateXML do
     total = params.legal_monetary_total
     currency_id = params.currency_code
 
-    element("cac:LegalMonetaryTotal", [
-      element("cbc:LineExtensionAmount", [currencyID: currency_id], total.line_extension_amount),
-      element("cbc:TaxExclusiveAmount", [currencyID: currency_id], total.tax_exclusive_amount),
-      element("cbc:TaxInclusiveAmount", [currencyID: currency_id], total.tax_inclusive_amount),
-      element("cbc:PayableAmount", [currencyID: currency_id], total.payable_amount)
-    ])
+    element(
+      "cac:LegalMonetaryTotal",
+      [
+        element(
+          "cbc:LineExtensionAmount",
+          [currencyID: currency_id],
+          total.line_extension_amount
+        ),
+        element("cbc:TaxExclusiveAmount", [currencyID: currency_id], total.tax_exclusive_amount),
+        element("cbc:TaxInclusiveAmount", [currencyID: currency_id], total.tax_inclusive_amount),
+        build_allowance_total_amount(Map.get(total, :allowance_total_amount), currency_id),
+        build_prepaid_amount(Map.get(total, :prepaid_amount), currency_id),
+        element("cbc:PayableAmount", [currencyID: currency_id], total.payable_amount)
+      ]
+      |> Enum.reject(&is_nil/1)
+    )
+  end
+
+  defp build_allowance_total_amount(nil, _currency_id), do: nil
+
+  defp build_allowance_total_amount(amount, currency_id) do
+    element("cbc:AllowanceTotalAmount", [currencyID: currency_id], amount)
+  end
+
+  defp build_prepaid_amount(nil, _currency_id), do: nil
+
+  defp build_prepaid_amount(amount, currency_id) do
+    element("cbc:PrepaidAmount", [currencyID: currency_id], amount)
   end
 
   defp build_invoice_lines(params) do

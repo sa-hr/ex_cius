@@ -390,8 +390,12 @@ defmodule ExCius.InvoiceXmlParser do
         doc |> xpath(~x"#{total_xpath}/cbc:TaxExclusiveAmount/text()"s, namespaces: ns),
       tax_inclusive_amount:
         doc |> xpath(~x"#{total_xpath}/cbc:TaxInclusiveAmount/text()"s, namespaces: ns),
+      allowance_total_amount:
+        extract_optional_text(doc, "#{total_xpath}/cbc:AllowanceTotalAmount/text()"),
+      prepaid_amount: extract_optional_text(doc, "#{total_xpath}/cbc:PrepaidAmount/text()"),
       payable_amount: doc |> xpath(~x"#{total_xpath}/cbc:PayableAmount/text()"s, namespaces: ns)
     }
+    |> filter_nil_values()
   end
 
   defp extract_invoice_lines(doc) do
