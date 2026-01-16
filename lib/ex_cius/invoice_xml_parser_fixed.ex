@@ -60,6 +60,7 @@ defmodule ExCius.InvoiceXmlParserFixed do
       supplier: extract_supplier(doc),
       customer: extract_customer(doc),
       payment_method: extract_payment_method(doc),
+      allowance_charges: extract_allowance_charges(doc),
       tax_total: extract_tax_total(doc),
       legal_monetary_total: extract_legal_monetary_total(doc),
       invoice_lines: extract_invoice_lines(doc),
@@ -307,6 +308,86 @@ defmodule ExCius.InvoiceXmlParserFixed do
           instruction_note: (instruction_note != "" && instruction_note) || nil,
           payment_id: (payment_id != "" && payment_id) || nil,
           payee_financial_account_id: (payee_account_id != "" && payee_account_id) || nil
+        }
+        |> filter_nil_values()
+    end
+  end
+
+  # Extracts document-level AllowanceCharge elements (BG-20/BG-21)
+  # These are charges/surcharges or discounts/allowances at the invoice level
+  defp extract_allowance_charges(doc) do
+    # Only get direct children of Invoice to avoid picking up line-level allowances
+    allowance_charges =
+      doc
+      |> xpath(~x"//*[local-name()='Invoice']/*[local-name()='AllowanceCharge']"l)
+      |> Enum.map(&extract_single_allowance_charge/1)
+
+    case allowance_charges do
+      [] -> nil
+      charges -> charges
+    end
+  end
+
+  defp extract_single_allowance_charge(ac_node) do
+    charge_indicator =
+      case ac_node |> xpath(~x"./*[local-name()='ChargeIndicator']/text()"s) do
+        "true" -> true
+        "false" -> false
+        _ -> nil
+      end
+
+    amount = ac_node |> xpath(~x"./*[local-name()='Amount']/text()"s)
+    reason = extract_optional_text(ac_node, "./*[local-name()='AllowanceChargeReason']/text()")
+
+    reason_code =
+      extract_optional_text(ac_node, "./*[local-name()='AllowanceChargeReasonCode']/text()")
+
+    multiplier =
+      extract_optional_text(ac_node, "./*[local-name()='MultiplierFactorNumeric']/text()")
+
+    base_amount = extract_optional_text(ac_node, "./*[local-name()='BaseAmount']/text()")
+
+    tax_category = extract_allowance_charge_tax_category(ac_node)
+
+    %{
+      charge_indicator: charge_indicator,
+      amount: amount,
+      allowance_charge_reason: reason,
+      allowance_charge_reason_code: reason_code,
+      multiplier_factor_numeric: multiplier && parse_number(multiplier),
+      base_amount: base_amount,
+      tax_category: tax_category
+    }
+    |> filter_nil_values()
+  end
+
+  defp extract_allowance_charge_tax_category(ac_node) do
+    category_path = "./*[local-name()='TaxCategory']"
+
+    id = ac_node |> xpath(~x"#{category_path}/*[local-name()='ID']/text()"s)
+
+    case id do
+      "" ->
+        nil
+
+      _ ->
+        percent = ac_node |> xpath(~x"#{category_path}/*[local-name()='Percent']/text()"s)
+
+        scheme_id =
+          ac_node
+          |> xpath(~x"#{category_path}/*[local-name()='TaxScheme']/*[local-name()='ID']/text()"s)
+
+        exemption_reason =
+          extract_optional_text(
+            ac_node,
+            "#{category_path}/*[local-name()='TaxExemptionReason']/text()"
+          )
+
+        %{
+          id: map_tax_category_from_code(id),
+          percent: parse_number(percent),
+          tax_scheme_id: map_tax_scheme_from_code(scheme_id),
+          tax_exemption_reason: exemption_reason
         }
         |> filter_nil_values()
     end
