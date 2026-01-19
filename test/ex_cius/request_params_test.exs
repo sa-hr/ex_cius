@@ -742,4 +742,50 @@ defmodule ExCius.RequestParamsTest do
       assert validated.billing_reference.invoice_document_reference.id == "INV-2024-001"
     end
   end
+
+  describe "prepayment invoice (386) validation" do
+    test "allows prepayment_invoice without commodity_classification" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :prepayment_invoice)
+        |> update_in([:invoice_lines, Access.at(0), :item], fn item ->
+          Map.delete(item, :commodity_classification)
+        end)
+
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.invoice_type_code == "386"
+
+      assert is_nil(
+               validated.invoice_lines
+               |> hd()
+               |> Map.get(:item)
+               |> Map.get(:commodity_classification)
+             )
+    end
+
+    test "still accepts prepayment_invoice with commodity_classification" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :prepayment_invoice)
+
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.invoice_type_code == "386"
+
+      assert validated.invoice_lines
+             |> hd()
+             |> Map.get(:item)
+             |> Map.get(:commodity_classification)
+    end
+
+    test "regular invoice still requires commodity_classification" do
+      params =
+        valid_params()
+        |> update_in([:invoice_lines, Access.at(0), :item], fn item ->
+          Map.delete(item, :commodity_classification)
+        end)
+
+      assert {:error, errors} = RequestParams.new(params)
+      assert errors[:invoice_lines]["line_1"][:item][:commodity_classification] == "is required"
+    end
+  end
 end

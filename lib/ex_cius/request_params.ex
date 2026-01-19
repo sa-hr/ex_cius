@@ -160,7 +160,12 @@ defmodule ExCius.RequestParams do
 
   @required_line_fields [:id, :quantity, :unit_code, :line_extension_amount, :item, :price]
 
-  @required_item_fields [:name, :classified_tax_category, :commodity_classification]
+  @required_item_fields [:name, :classified_tax_category]
+  @required_item_fields_with_commodity [
+    :name,
+    :classified_tax_category,
+    :commodity_classification
+  ]
 
   @required_classified_tax_fields [:id, :percent, :tax_scheme_id]
 
@@ -278,7 +283,12 @@ defmodule ExCius.RequestParams do
          {:ok, _} <- validate_tax_total(params.tax_total, params.currency_code),
          {:ok, _} <- validate_monetary_total(params.legal_monetary_total),
          {:ok, _} <- validate_payment_method(params[:payment_method]),
-         {:ok, _} <- validate_invoice_lines(params.invoice_lines, params.currency_code),
+         {:ok, _} <-
+           validate_invoice_lines(
+             params.invoice_lines,
+             params.currency_code,
+             params.invoice_type_code
+           ),
          {:ok, _} <- validate_notes(params[:notes]),
          {:ok, _} <- validate_attachments(params[:attachments]),
          {:ok, _} <- validate_vat_cash_accounting(params[:vat_cash_accounting]),
@@ -988,12 +998,13 @@ defmodule ExCius.RequestParams do
   defp validate_iban(value) when is_binary(value) and byte_size(value) > 0, do: :ok
   defp validate_iban(_), do: {:error, "must be a non-empty string (IBAN)"}
 
-  defp validate_invoice_lines(lines, currency_code) when is_list(lines) and length(lines) > 0 do
+  defp validate_invoice_lines(lines, currency_code, invoice_type_code)
+       when is_list(lines) and length(lines) > 0 do
     errors =
       lines
       |> Enum.with_index()
       |> Enum.reduce(%{}, fn {line, index}, acc ->
-        case validate_invoice_line(line, currency_code) do
+        case validate_invoice_line(line, currency_code, invoice_type_code) do
           {:ok, _} -> acc
           {:error, line_errors} -> Map.put(acc, "line_#{index + 1}", line_errors)
         end
@@ -1005,9 +1016,9 @@ defmodule ExCius.RequestParams do
     end
   end
 
-  defp validate_invoice_lines(_, _), do: {:error, %{invoice_lines: "must be a non-empty list"}}
+  defp validate_invoice_lines(_, _, _), do: {:error, %{invoice_lines: "must be a non-empty list"}}
 
-  defp validate_invoice_line(line, _currency_code) when is_map(line) do
+  defp validate_invoice_line(line, _currency_code, invoice_type_code) when is_map(line) do
     missing_fields =
       Enum.filter(@required_line_fields, fn field ->
         value = line[field]
@@ -1022,7 +1033,7 @@ defmodule ExCius.RequestParams do
           |> add_error(:quantity, validate_quantity(line.quantity))
           |> add_error(:unit_code, validate_unit_code(line.unit_code))
           |> add_error(:line_extension_amount, validate_amount(line.line_extension_amount))
-          |> add_error(:item, validate_item(line.item))
+          |> add_error(:item, validate_item(line.item, invoice_type_code))
           |> add_error(:price, validate_price(line.price))
           |> add_error(
             :allowance_charges,
@@ -1040,7 +1051,7 @@ defmodule ExCius.RequestParams do
     end
   end
 
-  defp validate_invoice_line(_, _), do: {:error, "must be a map"}
+  defp validate_invoice_line(_, _, _), do: {:error, "must be a map"}
 
   defp validate_line_allowance_charges(nil), do: :ok
   defp validate_line_allowance_charges([]), do: :ok
@@ -1072,9 +1083,17 @@ defmodule ExCius.RequestParams do
 
   defp validate_unit_code(_), do: {:error, "must be #{UnitCode.code(UnitCode.default())}"}
 
-  defp validate_item(item) when is_map(item) do
+  defp validate_item(item, invoice_type_code) when is_map(item) do
+    # For prepayment invoices (386), commodity_classification is optional
+    required_fields =
+      if invoice_type_code == "386" do
+        @required_item_fields
+      else
+        @required_item_fields_with_commodity
+      end
+
     missing_fields =
-      Enum.filter(@required_item_fields, fn field ->
+      Enum.filter(required_fields, fn field ->
         value = item[field]
         is_nil(value) || value == "" || (is_map(value) && map_size(value) == 0)
       end)
@@ -1090,7 +1109,7 @@ defmodule ExCius.RequestParams do
           )
           |> add_error(
             :commodity_classification,
-            validate_required_commodity_classification(item.commodity_classification)
+            validate_optional_commodity_classification(item[:commodity_classification])
           )
 
         if Enum.empty?(errors), do: :ok, else: {:error, errors}
@@ -1100,7 +1119,7 @@ defmodule ExCius.RequestParams do
     end
   end
 
-  defp validate_item(_), do: {:error, "must be a map"}
+  defp validate_item(_, _), do: {:error, "must be a map"}
 
   defp validate_item_name(value) when is_binary(value) and byte_size(value) > 0, do: :ok
   defp validate_item_name(_), do: {:error, "must be a non-empty string"}
@@ -1143,6 +1162,16 @@ defmodule ExCius.RequestParams do
   end
 
   defp validate_required_commodity_classification(_),
+    do: {:error, "must be a map with item_classification_code and list_id"}
+
+  # Optional commodity classification - validates if present, allows nil
+  defp validate_optional_commodity_classification(nil), do: :ok
+
+  defp validate_optional_commodity_classification(classification) when is_map(classification) do
+    validate_required_commodity_classification(classification)
+  end
+
+  defp validate_optional_commodity_classification(_),
     do: {:error, "must be a map with item_classification_code and list_id"}
 
   defp validate_cg_list_id("CG"), do: :ok
