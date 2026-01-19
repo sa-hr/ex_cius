@@ -57,6 +57,7 @@ defmodule ExCius.InvoiceXmlParserFixed do
       business_process: extract_business_process(doc),
       invoice_type_code: extract_invoice_type_code(doc),
       billing_reference: extract_billing_reference(doc),
+      order_reference: extract_order_reference(doc),
       supplier: extract_supplier(doc),
       customer: extract_customer(doc),
       payment_method: extract_payment_method(doc),
@@ -158,6 +159,31 @@ defmodule ExCius.InvoiceXmlParserFixed do
             }
             |> filter_nil_values()
         }
+    end
+  end
+
+  # Extracts OrderReference (BT-13 Buyer Order Reference, BT-14 Sales Order Reference)
+  # cbc:ID maps to buyer_reference (BT-13)
+  # cbc:SalesOrderID maps to sales_order_id (BT-14)
+  defp extract_order_reference(doc) do
+    order_ref_path = "//*[local-name()='OrderReference']"
+
+    # BT-13: Buyer's order reference (cbc:ID within OrderReference)
+    buyer_reference = doc |> xpath(~x"#{order_ref_path}/*[local-name()='ID']/text()"s)
+
+    # BT-14: Seller's sales order reference
+    sales_order_id = doc |> xpath(~x"#{order_ref_path}/*[local-name()='SalesOrderID']/text()"s)
+
+    case {buyer_reference, sales_order_id} do
+      {"", ""} ->
+        nil
+
+      _ ->
+        %{
+          buyer_reference: (buyer_reference != "" && buyer_reference) || nil,
+          sales_order_id: (sales_order_id != "" && sales_order_id) || nil
+        }
+        |> filter_nil_values()
     end
   end
 

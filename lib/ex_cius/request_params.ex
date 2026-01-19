@@ -29,6 +29,7 @@ defmodule ExCius.RequestParams do
   - `:attachments` - List of embedded document attachments (list of maps)
   - `:allowance_charges` - List of document-level allowances/charges (list of maps)
   - `:billing_reference` - Reference to preceding invoice (map), required for credit notes (381), corrected invoices (384), and debit notes (383)
+  - `:order_reference` - Reference to purchase order and/or sales order (map), see Order Reference Structure below
   - `:vat_cash_accounting` - VAT cash accounting flag for Croatian "Obračun PDV po naplati" (boolean or string)
   - `:hr_tax_extension` - Croatian HRFISK20Data tax extension for exempt/out-of-scope scenarios (boolean, generates HRTaxTotal)
   - `:out_of_scope_amount` - Amount outside VAT scope for HRLegalMonetaryTotal extension (string, e.g., "0.00")
@@ -40,6 +41,21 @@ defmodule ExCius.RequestParams do
   - `:invoice_document_reference` - A map with:
     - `:id` - The number/identifier of the original invoice being referenced (required)
     - `:issue_date` - The issue date of the original invoice (optional, Date or ISO 8601 string)
+
+  ## Order Reference Structure (BT-13, BT-14)
+
+  Optional reference to purchase orders and sales orders/quotations.
+  The `:order_reference` map may contain:
+  - `:buyer_reference` - BT-13: The buyer's purchase order number (optional)
+  - `:sales_order_id` - BT-14: The seller's sales order or quotation number (optional)
+
+  At least one of these fields must be present when order_reference is provided.
+
+  Scenarios:
+  - Both fields: Buyer's purchase order references seller's quotation
+  - Only buyer_reference: Direct order from buyer without prior quotation
+  - Only sales_order_id: Buyer accepted quotation but didn't provide their order number
+  - Neither (nil): No order reference in the invoice
 
   ## Allowance/Charge Structure (Document Level)
 
@@ -100,6 +116,7 @@ defmodule ExCius.RequestParams do
 
   alias ExCius.AllowanceCharge
   alias ExCius.BillingReference
+  alias ExCius.OrderReference
 
   alias ExCius.Enums.{
     BusinessProcess,
@@ -294,7 +311,8 @@ defmodule ExCius.RequestParams do
          {:ok, _} <- validate_vat_cash_accounting(params[:vat_cash_accounting]),
          {:ok, _} <- validate_allowance_charges(params[:allowance_charges]),
          {:ok, _} <-
-           validate_billing_reference(params[:billing_reference], params[:invoice_type_code]) do
+           validate_billing_reference(params[:billing_reference], params[:invoice_type_code]),
+         {:ok, _} <- validate_order_reference(params[:order_reference]) do
       {:ok, params}
     end
   end
@@ -320,6 +338,7 @@ defmodule ExCius.RequestParams do
     |> Map.update(:attachments, nil, &atomize_attachments/1)
     |> Map.update(:allowance_charges, nil, &atomize_allowance_charges/1)
     |> Map.update(:billing_reference, nil, &atomize_billing_reference/1)
+    |> Map.update(:order_reference, nil, &atomize_order_reference/1)
   end
 
   defp atomize_map(nil), do: nil
@@ -1268,6 +1287,14 @@ defmodule ExCius.RequestParams do
 
   defp atomize_billing_reference(value), do: value
 
+  defp atomize_order_reference(nil), do: nil
+
+  defp atomize_order_reference(order_ref) when is_map(order_ref) do
+    atomize_map(order_ref)
+  end
+
+  defp atomize_order_reference(value), do: value
+
   defp atomize_line_allowance_charges(nil), do: nil
 
   defp atomize_line_allowance_charges(allowance_charges) when is_list(allowance_charges) do
@@ -1414,6 +1441,21 @@ defmodule ExCius.RequestParams do
 
   defp validate_billing_reference(_, _) do
     {:error, %{billing_reference: "must be a map"}}
+  end
+
+  # Validates the optional order reference (BT-13, BT-14)
+  # At least one of buyer_reference or sales_order_id must be present when provided
+  defp validate_order_reference(nil), do: {:ok, nil}
+
+  defp validate_order_reference(order_ref) when is_map(order_ref) do
+    case OrderReference.validate(order_ref) do
+      :ok -> {:ok, order_ref}
+      {:error, errors} -> {:error, %{order_reference: errors}}
+    end
+  end
+
+  defp validate_order_reference(_) do
+    {:error, %{order_reference: "must be a map"}}
   end
 
   defp add_error(errors, _field, :ok), do: errors

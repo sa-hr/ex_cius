@@ -185,6 +185,7 @@ defmodule ExCius.InvoiceTemplateXML do
         build_document_currency_code(params),
         build_invoice_period(params),
         build_billing_reference(params),
+        build_order_reference(params),
         build_additional_document_references(params),
         build_accounting_supplier_party(params),
         build_accounting_customer_party(params),
@@ -348,6 +349,55 @@ defmodule ExCius.InvoiceTemplateXML do
   end
 
   defp build_billing_reference_issue_date(_), do: nil
+
+  # Builds OrderReference element (BT-13, BT-14)
+  # Contains buyer's order reference and/or seller's sales order reference
+  # Scenarios:
+  # - Both buyer_reference and sales_order_id: Include both in cac:OrderReference
+  # - Only buyer_reference (BT-13): Generate cac:OrderReference with cbc:ID
+  # - Only sales_order_id (BT-14): Generate cac:OrderReference with cbc:SalesOrderID
+  #   Note: cbc:ID is required when the block exists, so we use sales_order_id as fallback
+  # - Neither: Do not generate the cac:OrderReference block
+  defp build_order_reference(%{order_reference: nil}), do: nil
+  defp build_order_reference(%{order_reference: %{}}), do: nil
+
+  defp build_order_reference(%{order_reference: order_ref}) when is_map(order_ref) do
+    buyer_ref = Map.get(order_ref, :buyer_reference)
+    sales_order_id = Map.get(order_ref, :sales_order_id)
+
+    case {has_value?(buyer_ref), has_value?(sales_order_id)} do
+      {false, false} ->
+        # Neither exists - do not generate the block
+        nil
+
+      {true, false} ->
+        # Only buyer reference (BT-13) - use it as cbc:ID
+        element("cac:OrderReference", [
+          element("cbc:ID", buyer_ref)
+        ])
+
+      {false, true} ->
+        # Only sales order ID (BT-14) - cbc:ID is required, use sales_order_id as fallback
+        element("cac:OrderReference", [
+          element("cbc:ID", sales_order_id),
+          element("cbc:SalesOrderID", sales_order_id)
+        ])
+
+      {true, true} ->
+        # Both exist - include both fields
+        element("cac:OrderReference", [
+          element("cbc:ID", buyer_ref),
+          element("cbc:SalesOrderID", sales_order_id)
+        ])
+    end
+  end
+
+  defp build_order_reference(_), do: nil
+
+  defp has_value?(nil), do: false
+  defp has_value?(""), do: false
+  defp has_value?(value) when is_binary(value), do: true
+  defp has_value?(_), do: false
 
   # Builds AdditionalDocumentReference elements for embedded attachments
   # Each attachment is embedded as a base64-encoded binary object within the invoice XML.
