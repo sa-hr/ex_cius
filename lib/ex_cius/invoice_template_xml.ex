@@ -359,7 +359,11 @@ defmodule ExCius.InvoiceTemplateXML do
   #   Note: cbc:ID is required when the block exists, so we use sales_order_id as fallback
   # - Neither: Do not generate the cac:OrderReference block
   defp build_order_reference(%{order_reference: nil}), do: nil
-  defp build_order_reference(%{order_reference: %{}}), do: nil
+
+  defp build_order_reference(%{order_reference: order_ref})
+       when is_map(order_ref) and order_ref == %{} do
+    nil
+  end
 
   defp build_order_reference(%{order_reference: order_ref}) when is_map(order_ref) do
     buyer_ref = Map.get(order_ref, :buyer_reference)
