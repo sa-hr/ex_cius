@@ -381,9 +381,9 @@ defmodule ExCius.InvoiceTemplateXML do
         ])
 
       {false, true} ->
-        # Only sales order ID (BT-14) - cbc:ID is required, use sales_order_id as fallback
+        # Only sales order ID (BT-14) - use "NEMA" as placeholder for required cbc:ID
         element("cac:OrderReference", [
-          element("cbc:ID", sales_order_id),
+          element("cbc:ID", "NEMA"),
           element("cbc:SalesOrderID", sales_order_id)
         ])
 
