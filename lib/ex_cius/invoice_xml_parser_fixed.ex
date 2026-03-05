@@ -72,8 +72,10 @@ defmodule ExCius.InvoiceXmlParserFixed do
   end
 
   defp extract_id(doc) do
-    doc
-    |> xpath(~x"//*[local-name()='Invoice']/*[local-name()='ID']/text()"s)
+    case doc |> xpath(~x"//*[local-name()='Invoice']/*[local-name()='ID']/text()"s) do
+      "" -> doc |> xpath(~x"//*[local-name()='CreditNote']/*[local-name()='ID']/text()"s)
+      id -> id
+    end
   end
 
   defp extract_issue_datetime(doc) do
@@ -128,7 +130,12 @@ defmodule ExCius.InvoiceXmlParserFixed do
   end
 
   defp extract_invoice_type_code(doc) do
-    type_code = doc |> xpath(~x"//*[local-name()='InvoiceTypeCode']/text()"s)
+    type_code =
+      case doc |> xpath(~x"//*[local-name()='InvoiceTypeCode']/text()"s) do
+        "" -> doc |> xpath(~x"//*[local-name()='CreditNoteTypeCode']/text()"s)
+        code -> code
+      end
+
     map_invoice_type_from_code(type_code)
   end
 
@@ -343,9 +350,14 @@ defmodule ExCius.InvoiceXmlParserFixed do
   # These are charges/surcharges or discounts/allowances at the invoice level
   defp extract_allowance_charges(doc) do
     # Only get direct children of Invoice to avoid picking up line-level allowances
+    invoice_charges =
+      doc |> xpath(~x"//*[local-name()='Invoice']/*[local-name()='AllowanceCharge']"l)
+
+    credit_note_charges =
+      doc |> xpath(~x"//*[local-name()='CreditNote']/*[local-name()='AllowanceCharge']"l)
+
     allowance_charges =
-      doc
-      |> xpath(~x"//*[local-name()='Invoice']/*[local-name()='AllowanceCharge']"l)
+      (invoice_charges ++ credit_note_charges)
       |> Enum.map(&extract_single_allowance_charge/1)
 
     case allowance_charges do
@@ -477,17 +489,28 @@ defmodule ExCius.InvoiceXmlParserFixed do
   end
 
   defp extract_invoice_lines(doc) do
-    doc
-    |> xpath(~x"//*[local-name()='InvoiceLine']"l)
-    |> Enum.map(fn line ->
+    invoice_lines = doc |> xpath(~x"//*[local-name()='InvoiceLine']"l)
+    credit_note_lines = doc |> xpath(~x"//*[local-name()='CreditNoteLine']"l)
+
+    lines = invoice_lines ++ credit_note_lines
+
+    Enum.map(lines, fn line ->
+      quantity_text =
+        case line |> xpath(~x"./*[local-name()='InvoicedQuantity']/text()"s) do
+          "" -> line |> xpath(~x"./*[local-name()='CreditedQuantity']/text()"s)
+          q -> q
+        end
+
+      unit_code_text =
+        case line |> xpath(~x"./*[local-name()='InvoicedQuantity']/@unitCode"s) do
+          "" -> line |> xpath(~x"./*[local-name()='CreditedQuantity']/@unitCode"s)
+          u -> u
+        end
+
       %{
         id: line |> xpath(~x"./*[local-name()='ID']/text()"s),
-        quantity: parse_quantity(line |> xpath(~x"./*[local-name()='InvoicedQuantity']/text()"s)),
-        unit_code:
-          map_unit_code_from_code(
-            line
-            |> xpath(~x"./*[local-name()='InvoicedQuantity']/@unitCode"s)
-          ),
+        quantity: parse_quantity(quantity_text),
+        unit_code: map_unit_code_from_code(unit_code_text),
         line_extension_amount: line |> xpath(~x"./*[local-name()='LineExtensionAmount']/text()"s),
         item: extract_item(line),
         price: extract_price(line)

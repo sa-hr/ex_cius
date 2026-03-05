@@ -148,9 +148,16 @@ defmodule ExCius.InvoiceTemplateXML do
   required elements properly formatted and namespace-qualified.
   """
   def build_xml(params) do
-    invoice_element = build_invoice(params)
+    invoice_type = Map.get(params, :invoice_type_code, InvoiceTypeCode.default())
 
-    xml_content = XmlBuilder.generate(invoice_element)
+    doc_element =
+      if InvoiceTypeCode.credit_type?(invoice_type) do
+        build_credit_note(params)
+      else
+        build_invoice(params)
+      end
+
+    xml_content = XmlBuilder.generate(doc_element)
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" <> xml_content
   end
 
@@ -195,6 +202,52 @@ defmodule ExCius.InvoiceTemplateXML do
         build_tax_total(params),
         build_legal_monetary_total(params),
         build_invoice_lines(params)
+      ]
+      |> Enum.reject(&is_nil/1)
+    )
+  end
+
+  defp build_credit_note(params) do
+    element(
+      :CreditNote,
+      [
+        xmlns: "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2",
+        "xmlns:cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
+        "xmlns:cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
+        "xmlns:cct": "urn:un:unece:uncefact:data:specification:CoreComponentTypeSchemaModule:2",
+        "xmlns:ext": "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2",
+        "xmlns:hrextac": "urn:mfin.gov.hr:schema:xsd:HRExtensionAggregateComponents-1",
+        "xmlns:p3": "urn:oasis:names:specification:ubl:schema:xsd:UnqualifiedDataTypes-2",
+        "xmlns:sac":
+          "urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2",
+        "xmlns:sig": "urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2",
+        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "xsi:schemaLocation":
+          "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2 ../xsd/ubl/maindoc/UBL-CreditNote-2.1.xsd "
+      ],
+      [
+        build_ubl_extensions(params),
+        build_customization_id(),
+        build_profile_id(params),
+        build_id(params),
+        build_issue_date(params),
+        build_issue_time(params),
+        build_due_date(params),
+        build_credit_note_type_code(params),
+        build_notes(params),
+        build_document_currency_code(params),
+        build_invoice_period(params),
+        build_billing_reference(params),
+        build_order_reference(params),
+        build_additional_document_references(params),
+        build_accounting_supplier_party(params),
+        build_accounting_customer_party(params),
+        build_delivery(params),
+        build_payment_means(params),
+        build_allowance_charges(params),
+        build_tax_total(params),
+        build_legal_monetary_total(params),
+        build_credit_note_lines(params)
       ]
       |> Enum.reject(&is_nil/1)
     )
@@ -476,6 +529,12 @@ defmodule ExCius.InvoiceTemplateXML do
     invoice_type = Map.get(params, :invoice_type_code, InvoiceTypeCode.default())
     type_code = InvoiceTypeCode.code(invoice_type)
     element("cbc:InvoiceTypeCode", type_code)
+  end
+
+  defp build_credit_note_type_code(params) do
+    invoice_type = Map.get(params, :invoice_type_code, InvoiceTypeCode.default())
+    type_code = InvoiceTypeCode.code(invoice_type)
+    element("cbc:CreditNoteTypeCode", type_code)
   end
 
   defp build_document_currency_code(params) do
@@ -814,6 +873,36 @@ defmodule ExCius.InvoiceTemplateXML do
         |> Enum.reject(&is_nil/1)
       )
     end)
+  end
+
+  defp build_credit_note_lines(params) do
+    currency_id = params.currency_code
+
+    Enum.map(params.invoice_lines, fn line ->
+      element(
+        "cac:CreditNoteLine",
+        [
+          element("cbc:ID", line.id),
+          build_credited_quantity(line),
+          element(
+            "cbc:LineExtensionAmount",
+            [currencyID: currency_id],
+            line.line_extension_amount
+          ),
+          build_line_allowance_charges(line, currency_id),
+          build_item(line.item, currency_id),
+          build_price(line.price, currency_id)
+        ]
+        |> List.flatten()
+        |> Enum.reject(&is_nil/1)
+      )
+    end)
+  end
+
+  defp build_credited_quantity(line) do
+    unit_code = UnitCode.code(line.unit_code)
+    quantity = format_quantity(line.quantity)
+    element("cbc:CreditedQuantity", [unitCode: unit_code], quantity)
   end
 
   # Line-level allowances and charges (no TaxCategory)

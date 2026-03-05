@@ -158,8 +158,10 @@ defmodule ExCius.Enums.InvoiceTypeCode do
       false
   """
   def credit_type?(:credit_note), do: true
+  def credit_type?(:debit_note), do: true
   def credit_type?(:corrected_invoice), do: true
   def credit_type?("381"), do: true
+  def credit_type?("383"), do: true
   def credit_type?("384"), do: true
   def credit_type?(_), do: false
 

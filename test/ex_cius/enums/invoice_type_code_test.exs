@@ -160,9 +160,9 @@ defmodule ExCius.Enums.InvoiceTypeCodeTest do
       refute InvoiceTypeCode.credit_type?("380")
     end
 
-    test "returns false for debit_note" do
-      refute InvoiceTypeCode.credit_type?(:debit_note)
-      refute InvoiceTypeCode.credit_type?("383")
+    test "returns true for debit_note" do
+      assert InvoiceTypeCode.credit_type?(:debit_note)
+      assert InvoiceTypeCode.credit_type?("383")
     end
 
     test "returns false for prepayment_invoice" do
