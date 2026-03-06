@@ -1103,9 +1103,9 @@ defmodule ExCius.RequestParams do
   defp validate_unit_code(_), do: {:error, "must be #{UnitCode.code(UnitCode.default())}"}
 
   defp validate_item(item, invoice_type_code) when is_map(item) do
-    # For prepayment invoices (386), commodity_classification is optional
+    # For prepayment invoices (386) and credit notes (381), commodity_classification is optional
     required_fields =
-      if invoice_type_code == "386" do
+      if invoice_type_code in ["381", "386"] do
         @required_item_fields
       else
         @required_item_fields_with_commodity

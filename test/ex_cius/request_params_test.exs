@@ -777,6 +777,45 @@ defmodule ExCius.RequestParamsTest do
              |> Map.get(:commodity_classification)
     end
 
+    test "allows credit_note without commodity_classification" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :credit_note)
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{id: "INV-2024-001", issue_date: "2024-12-15"}
+        })
+        |> update_in([:invoice_lines, Access.at(0), :item], fn item ->
+          Map.delete(item, :commodity_classification)
+        end)
+
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.invoice_type_code == "381"
+
+      assert is_nil(
+               validated.invoice_lines
+               |> hd()
+               |> Map.get(:item)
+               |> Map.get(:commodity_classification)
+             )
+    end
+
+    test "still accepts credit_note with commodity_classification" do
+      params =
+        valid_params()
+        |> Map.put(:invoice_type_code, :credit_note)
+        |> Map.put(:billing_reference, %{
+          invoice_document_reference: %{id: "INV-2024-001", issue_date: "2024-12-15"}
+        })
+
+      assert {:ok, validated} = RequestParams.new(params)
+      assert validated.invoice_type_code == "381"
+
+      assert validated.invoice_lines
+             |> hd()
+             |> Map.get(:item)
+             |> Map.get(:commodity_classification)
+    end
+
     test "regular invoice still requires commodity_classification" do
       params =
         valid_params()
