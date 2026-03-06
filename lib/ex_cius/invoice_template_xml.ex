@@ -925,6 +925,7 @@ defmodule ExCius.InvoiceTemplateXML do
     element(
       "cac:Item",
       [
+        build_item_description(Map.get(item, :description)),
         element("cbc:Name", item.name),
         build_commodity_classification(Map.get(item, :commodity_classification)),
         build_classified_tax_category(item.classified_tax_category)
@@ -932,6 +933,10 @@ defmodule ExCius.InvoiceTemplateXML do
       |> Enum.reject(&is_nil/1)
     )
   end
+
+  defp build_item_description(nil), do: nil
+  defp build_item_description(""), do: nil
+  defp build_item_description(desc), do: element("cbc:Description", desc)
 
   defp build_commodity_classification(nil), do: nil
 

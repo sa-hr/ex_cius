@@ -522,11 +522,13 @@ defmodule ExCius.InvoiceXmlParserFixed do
     item_path = "./*[local-name()='Item']"
 
     name = line |> xpath(~x"#{item_path}/*[local-name()='Name']/text()"s)
+    description = extract_optional_text(line, "#{item_path}/*[local-name()='Description']/text()")
     classification = extract_commodity_classification(line, item_path)
     tax_category = extract_classified_tax_category(line, item_path)
 
     %{
       name: name,
+      description: description,
       commodity_classification: classification,
       classified_tax_category: tax_category
     }
