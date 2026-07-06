@@ -1585,4 +1585,120 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       refute String.contains?(xml, "<hrextac:HRObracunPDVPoNaplati>")
     end
   end
+
+  describe "business_unit party identification" do
+    test "renders supplier business_unit as PartyIdentification ID with schemeID HR99" do
+      params = put_in(business_unit_base_params(), [:supplier, :business_unit], "POSL-1")
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      assert String.contains?(xml, "<cbc:ID>9934:12345678901</cbc:ID>")
+      assert String.contains?(xml, "<cbc:ID schemeID=\"HR99\">POSL-1</cbc:ID>")
+    end
+
+    test "renders customer business_unit as PartyIdentification ID with schemeID HR99" do
+      params = put_in(business_unit_base_params(), [:customer, :business_unit], "POSL-2")
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      assert String.contains?(xml, "<cbc:ID>9934:11111111119</cbc:ID>")
+      assert String.contains?(xml, "<cbc:ID schemeID=\"HR99\">POSL-2</cbc:ID>")
+    end
+
+    test "omits HR99 PartyIdentification ID when business_unit is not set" do
+      params = business_unit_base_params()
+
+      {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      refute String.contains?(xml, "schemeID=\"HR99\"")
+    end
+  end
+
+  defp business_unit_base_params do
+    %{
+      id: "5-P1-1",
+      issue_datetime: "2025-05-01T12:00:00",
+      currency_code: "EUR",
+      supplier: %{
+        oib: "12345678901",
+        registration_name: "FINANCIJSKA AGENCIJA",
+        postal_address: %{
+          street_name: "VRTNI PUT 3",
+          city_name: "ZAGREB",
+          postal_zone: "10000",
+          country_code: "HR"
+        },
+        party_tax_scheme: %{
+          company_id: "HR12345678901",
+          tax_scheme_id: "vat"
+        },
+        seller_contact: %{
+          id: "51634872748",
+          name: "Operater1"
+        }
+      },
+      customer: %{
+        oib: "11111111119",
+        registration_name: "Tvrtka B d.o.o.",
+        postal_address: %{
+          street_name: "Ulica 2",
+          city_name: "RIJEKA",
+          postal_zone: "51000",
+          country_code: "HR"
+        },
+        party_tax_scheme: %{
+          company_id: "HR11111111119",
+          tax_scheme_id: "vat"
+        }
+      },
+      tax_total: %{
+        tax_amount: "25.00",
+        tax_subtotals: [
+          %{
+            taxable_amount: "100.00",
+            tax_amount: "25.00",
+            tax_category: %{
+              id: "standard_rate",
+              percent: 25,
+              tax_scheme_id: "vat"
+            }
+          }
+        ]
+      },
+      legal_monetary_total: %{
+        line_extension_amount: "100.00",
+        tax_exclusive_amount: "100.00",
+        tax_inclusive_amount: "125.00",
+        payable_amount: "125.00"
+      },
+      invoice_lines: [
+        %{
+          id: "1",
+          quantity: 1.0,
+          unit_code: "piece",
+          line_extension_amount: "100.00",
+          item: %{
+            name: "Managed bookkeeping services",
+            classified_tax_category: %{
+              id: "standard_rate",
+              percent: 25,
+              tax_scheme_id: "vat"
+            },
+            commodity_classification: %{
+              item_classification_code: "82990000",
+              list_id: "CG"
+            }
+          },
+          price: %{
+            price_amount: "100.00",
+            base_quantity: 1.0,
+            unit_code: "piece"
+          }
+        }
+      ]
+    }
+  end
 end

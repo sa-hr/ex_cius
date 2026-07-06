@@ -605,7 +605,7 @@ defmodule ExCius.InvoiceTemplateXML do
           "cac:Party",
           [
             build_endpoint_id(supplier.oib),
-            build_party_identification(supplier.oib),
+            build_party_identification(supplier.oib, Map.get(supplier, :business_unit)),
             build_postal_address(supplier.postal_address),
             build_party_tax_scheme(supplier.party_tax_scheme),
             build_party_legal_entity(supplier.registration_name),
@@ -627,7 +627,7 @@ defmodule ExCius.InvoiceTemplateXML do
         "cac:Party",
         [
           build_endpoint_id(customer.oib),
-          build_party_identification(customer.oib),
+          build_party_identification(customer.oib, Map.get(customer, :business_unit)),
           build_postal_address(customer.postal_address),
           build_party_tax_scheme(customer.party_tax_scheme),
           build_party_legal_entity(customer.registration_name),
@@ -642,10 +642,21 @@ defmodule ExCius.InvoiceTemplateXML do
     element("cbc:EndpointID", [schemeID: "9934"], oib)
   end
 
-  defp build_party_identification(oib) do
-    element("cac:PartyIdentification", [
-      element("cbc:ID", "9934:#{oib}")
-    ])
+  defp build_party_identification(oib, business_unit) do
+    element(
+      "cac:PartyIdentification",
+      [
+        element("cbc:ID", "9934:#{oib}"),
+        build_business_unit_id(business_unit)
+      ]
+      |> Enum.reject(&is_nil/1)
+    )
+  end
+
+  defp build_business_unit_id(nil), do: nil
+
+  defp build_business_unit_id(business_unit) do
+    element("cbc:ID", [schemeID: "HR99"], business_unit)
   end
 
   defp build_postal_address(address) do
