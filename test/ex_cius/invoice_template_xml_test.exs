@@ -1587,33 +1587,32 @@ defmodule ExCius.InvoiceTemplateXMLTest do
   end
 
   describe "business_unit party identification" do
-    test "renders supplier business_unit as PartyIdentification ID with schemeID HR99" do
+    test "appends supplier business_unit to PartyIdentification ID as ::HR99" do
       params = put_in(business_unit_base_params(), [:supplier, :business_unit], "POSL-1")
 
       {:ok, validated_params} = RequestParams.new(params)
       xml = InvoiceTemplateXML.build_xml(validated_params)
 
-      assert String.contains?(xml, "<cbc:ID>9934:12345678901</cbc:ID>")
-      assert String.contains?(xml, "<cbc:ID schemeID=\"HR99\">POSL-1</cbc:ID>")
+      assert String.contains?(xml, "<cbc:ID>9934:12345678901::HR99:POSL-1</cbc:ID>")
     end
 
-    test "renders customer business_unit as PartyIdentification ID with schemeID HR99" do
+    test "appends customer business_unit to PartyIdentification ID as ::HR99" do
       params = put_in(business_unit_base_params(), [:customer, :business_unit], "POSL-2")
 
       {:ok, validated_params} = RequestParams.new(params)
       xml = InvoiceTemplateXML.build_xml(validated_params)
 
-      assert String.contains?(xml, "<cbc:ID>9934:11111111119</cbc:ID>")
-      assert String.contains?(xml, "<cbc:ID schemeID=\"HR99\">POSL-2</cbc:ID>")
+      assert String.contains?(xml, "<cbc:ID>9934:11111111119::HR99:POSL-2</cbc:ID>")
     end
 
-    test "omits HR99 PartyIdentification ID when business_unit is not set" do
+    test "omits HR99 suffix when business_unit is not set" do
       params = business_unit_base_params()
 
       {:ok, validated_params} = RequestParams.new(params)
       xml = InvoiceTemplateXML.build_xml(validated_params)
 
-      refute String.contains?(xml, "schemeID=\"HR99\"")
+      assert String.contains?(xml, "<cbc:ID>9934:12345678901</cbc:ID>")
+      refute String.contains?(xml, "HR99")
     end
   end
 
