@@ -158,7 +158,8 @@ defmodule ExCius do
         "due_dates",
         "contact_information",
         "commodity_classification",
-        "user_notes"
+        "user_notes",
+        "category_o_party_tax_scheme_omission"
       ]
     }
   end

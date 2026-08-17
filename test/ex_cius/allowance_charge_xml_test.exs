@@ -97,7 +97,7 @@ defmodule ExCius.AllowanceChargeXMLTest do
 
       assert xml_string =~ "<cbc:ChargeIndicator>true</cbc:ChargeIndicator>"
       assert xml_string =~ "<cbc:ID>O</cbc:ID>"
-      assert xml_string =~ "<cbc:Percent>0</cbc:Percent>"
+      refute xml_string =~ "<cbc:Percent>"
 
       assert xml_string =~
                "<cbc:TaxExemptionReason>Povratna naknada - izvan područja primjene PDV-a</cbc:TaxExemptionReason>"

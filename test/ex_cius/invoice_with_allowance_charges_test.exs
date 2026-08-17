@@ -221,7 +221,7 @@ defmodule ExCius.InvoiceWithAllowanceChargesTest do
       assert xml =~ "<cbc:BaseAmount currencyID=\"EUR\">100.00</cbc:BaseAmount>"
     end
 
-    test "generates valid XML with non-taxable charge (Croatian Povratna naknada)" do
+    test "rejects a non-taxable charge mixed with a standard-rate line" do
       params = %{
         id: "INV-WITH-DEPOSIT",
         issue_datetime: "2025-05-01T12:00:00",
@@ -317,17 +317,8 @@ defmodule ExCius.InvoiceWithAllowanceChargesTest do
         ]
       }
 
-      assert {:ok, validated_params} = RequestParams.new(params)
-      xml = InvoiceTemplateXML.build_xml(validated_params)
-
-      assert xml =~ "<cac:AllowanceCharge>"
-      assert xml =~ "<cbc:ChargeIndicator>true</cbc:ChargeIndicator>"
-      assert xml =~ "<cbc:AllowanceChargeReason>Povratna naknada</cbc:AllowanceChargeReason>"
-      assert xml =~ "<cbc:ID>O</cbc:ID>"
-      assert xml =~ "<cbc:Percent>0</cbc:Percent>"
-
-      assert xml =~
-               "<cbc:TaxExemptionReason>Povratna naknada - izvan područja primjene PDV-a</cbc:TaxExemptionReason>"
+      assert {:error, %{tax_categories: "category O cannot be mixed with non-O categories"}} =
+               RequestParams.new(params)
     end
 
     test "generates valid XML with multiple document-level allowances and charges" do

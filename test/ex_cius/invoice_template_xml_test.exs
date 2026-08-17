@@ -140,6 +140,7 @@ defmodule ExCius.InvoiceTemplateXMLTest do
              )
 
       assert String.contains?(xml, "<cbc:RegistrationName>Tvrtka B d.o.o.</cbc:RegistrationName>")
+      assert length(Regex.scan(~r/<cac:PartyTaxScheme>/, xml)) == 2
 
       # Payment means checks
       assert String.contains?(xml, "<cac:PaymentMeans>")
@@ -194,6 +195,53 @@ defmodule ExCius.InvoiceTemplateXMLTest do
 
       # Ensure proper XML closing
       assert String.ends_with?(xml, "</Invoice>")
+    end
+
+    test "omits prohibited VAT fields for outside-scope invoices" do
+      assert {:ok, validated_params} = RequestParams.new(outside_scope_invoice_params())
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      refute xml =~ "<cac:PartyTaxScheme>"
+      refute xml =~ "<cbc:Percent>"
+      assert xml =~ "<cbc:ID>O</cbc:ID>"
+      assert xml =~ "<cbc:TaxExemptionReason>Outside VAT scope</cbc:TaxExemptionReason>"
+      refute xml =~ "<cbc:Name>HR:Z</cbc:Name>"
+      assert xml =~ "<cbc:Name>Caller-provided O name</cbc:Name>"
+      assert xml =~ ~r/<cac:TaxScheme>\s*<cbc:ID>VAT<\/cbc:ID>\s*<\/cac:TaxScheme>/
+      assert xml =~ "<cbc:EndpointID schemeID=\"9934\">12345678901</cbc:EndpointID>"
+      assert xml =~ "<cbc:ID>9934:12345678901</cbc:ID>"
+      assert xml =~ "<cbc:EndpointID schemeID=\"9934\">11111111119</cbc:EndpointID>"
+      assert xml =~ "<cbc:ID>9934:11111111119</cbc:ID>"
+    end
+
+    test "builds outside-scope XML after standalone validation without party tax schemes" do
+      assert {:ok, params} = RequestParams.new(outside_scope_invoice_params())
+
+      params =
+        params
+        |> update_in([:supplier], &Map.delete(&1, :party_tax_scheme))
+        |> update_in([:customer], &Map.delete(&1, :party_tax_scheme))
+
+      assert {:ok, validated_params} = RequestParams.validate(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      refute xml =~ "<cac:PartyTaxScheme>"
+    end
+
+    test "serializes outside-scope classified categories without a percentage" do
+      params =
+        outside_scope_invoice_params()
+        |> update_in(
+          [:invoice_lines, Access.at(0), :item, :classified_tax_category],
+          &Map.drop(&1, [:percent, :name])
+        )
+
+      assert {:ok, validated_params} = RequestParams.new(params)
+      xml = InvoiceTemplateXML.build_xml(validated_params)
+
+      assert xml =~ "<cac:ClassifiedTaxCategory>"
+      refute xml =~ "<cbc:Percent>"
+      refute xml =~ "<cbc:Name>HR:Z</cbc:Name>"
     end
 
     test "generates XML without optional fields" do
@@ -1614,6 +1662,44 @@ defmodule ExCius.InvoiceTemplateXMLTest do
       assert String.contains?(xml, "<cbc:ID>9934:12345678901</cbc:ID>")
       refute String.contains?(xml, "HR99")
     end
+  end
+
+  defp outside_scope_invoice_params do
+    line_category = %{
+      id: :outside_scope,
+      percent: 0,
+      tax_scheme_id: "vat",
+      tax_exemption_reason: "Outside VAT scope",
+      name: "Caller-provided O name"
+    }
+
+    subtotal_category =
+      line_category
+      |> Map.put(:id, "O")
+      |> Map.delete(:name)
+
+    allowance_category = Map.put(line_category, :id, "outside_scope")
+
+    business_unit_base_params()
+    |> Map.put(:hr_tax_extension, true)
+    |> Map.put(:out_of_scope_amount, "100.50")
+    |> Map.put(:allowance_charges, [
+      %{
+        charge_indicator: true,
+        allowance_charge_reason_code: :deposit_fee,
+        allowance_charge_reason: "Outside scope charge",
+        amount: "0.50",
+        tax_category: allowance_category
+      }
+    ])
+    |> put_in([:tax_total, :tax_amount], "0.00")
+    |> put_in([:tax_total, :tax_subtotals, Access.at(0), :taxable_amount], "100.50")
+    |> put_in([:tax_total, :tax_subtotals, Access.at(0), :tax_amount], "0.00")
+    |> put_in([:tax_total, :tax_subtotals, Access.at(0), :tax_category], subtotal_category)
+    |> put_in([:legal_monetary_total, :tax_exclusive_amount], "100.50")
+    |> put_in([:legal_monetary_total, :tax_inclusive_amount], "100.50")
+    |> put_in([:legal_monetary_total, :payable_amount], "100.50")
+    |> put_in([:invoice_lines, Access.at(0), :item, :classified_tax_category], line_category)
   end
 
   defp business_unit_base_params do

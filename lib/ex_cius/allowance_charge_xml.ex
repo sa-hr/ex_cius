@@ -191,7 +191,10 @@ defmodule ExCius.AllowanceChargeXML do
       "cac:TaxCategory",
       [
         element("cbc:ID", category_id),
-        element("cbc:Percent", tax_category.percent),
+        if(TaxCategory.code(tax_category.id) == "O",
+          do: nil,
+          else: element("cbc:Percent", tax_category.percent)
+        ),
         build_tax_exemption_reason(Map.get(tax_category, :tax_exemption_reason)),
         build_tax_exemption_reason_code(Map.get(tax_category, :tax_exemption_reason_code)),
         element("cac:TaxScheme", [

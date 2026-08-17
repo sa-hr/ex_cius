@@ -52,7 +52,6 @@ defmodule ExCius.AllowanceChargeTest do
         amount: "0.50",
         tax_category: %{
           id: :outside_scope,
-          percent: 0,
           tax_scheme_id: :vat,
           tax_exemption_reason: "Povratna naknada - izvan područja primjene PDV-a"
         }

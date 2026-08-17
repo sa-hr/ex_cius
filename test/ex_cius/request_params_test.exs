@@ -88,6 +88,20 @@ defmodule ExCius.RequestParamsTest do
     }
   end
 
+  defp outside_scope_params(category_id) do
+    category = %{
+      id: category_id,
+      tax_scheme_id: "VAT",
+      tax_exemption_reason: "Outside VAT scope"
+    }
+
+    valid_params()
+    |> put_in([:tax_total, :tax_subtotals, Access.at(0), :tax_category], category)
+    |> put_in([:invoice_lines, Access.at(0), :item, :classified_tax_category], category)
+    |> update_in([:supplier], &Map.delete(&1, :party_tax_scheme))
+    |> update_in([:customer], &Map.delete(&1, :party_tax_scheme))
+  end
+
   describe "new/1" do
     test "validates valid params successfully" do
       assert {:ok, params} = RequestParams.new(valid_params())
@@ -170,6 +184,27 @@ defmodule ExCius.RequestParamsTest do
         |> Map.new()
 
       assert {:ok, _} = RequestParams.new(params)
+    end
+
+    test "accepts category O input without party tax schemes or percentages" do
+      for category_id <- [:outside_scope, "outside_scope", "O"] do
+        assert {:ok, _params} = RequestParams.new(outside_scope_params(category_id))
+      end
+    end
+
+    test "rejects category O mixed with a non-O allowance" do
+      params =
+        valid_params()
+        |> Map.put(:allowance_charges, [
+          %{
+            charge_indicator: true,
+            amount: "0.50",
+            tax_category: %{id: "O", tax_scheme_id: "VAT"}
+          }
+        ])
+
+      assert {:error, %{tax_categories: "category O cannot be mixed with non-O categories"}} =
+               RequestParams.new(params)
     end
   end
 

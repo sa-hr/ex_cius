@@ -68,7 +68,7 @@ defmodule ExCius.RequestParams do
   - `:base_amount` - Base amount the percentage applies to (optional)
   - `:tax_category` - Tax category map (required for document level):
     - `:id` - Tax category code (e.g., :standard_rate, :exempt, :outside_scope)
-    - `:percent` - Tax percentage
+    - `:percent` - Tax percentage (optional for category O)
     - `:tax_scheme_id` - Tax scheme (e.g., :vat)
     - `:tax_exemption_reason` - (optional) Reason for exemption (Croatian HR extension)
     - `:tax_exemption_reason_code` - (optional) Code for exemption reason
@@ -82,7 +82,7 @@ defmodule ExCius.RequestParams do
 
   Tax categories in `:tax_subtotals` and `:classified_tax_category` support:
   - `:id` - Tax category code (e.g., "standard_rate", "reverse_charge", "exempt")
-  - `:percent` - Tax percentage (number)
+  - `:percent` - Tax percentage (number, optional for category O)
   - `:tax_scheme_id` - Tax scheme identifier (e.g., "vat")
   - `:tax_exemption_reason` - (optional) Reason for tax exemption, required for reverse_charge (AE) and exempt (E) categories
 
@@ -100,7 +100,7 @@ defmodule ExCius.RequestParams do
   - `:oib` - Croatian OIB (11-digit string)
   - `:registration_name` - Legal name (string)
   - `:postal_address` - Address map with `:street_name`, `:city_name`, `:postal_zone`, `:country_code`
-  - `:party_tax_scheme` - Tax scheme map with `:company_id`, `:tax_scheme_id`
+  - `:party_tax_scheme` - Tax scheme map with `:company_id`, `:tax_scheme_id` (optional for O-only invoices)
   - `:seller_contact` - Operator information (required for Croatian CIUS compliance):
     - `:id` - Operator's OIB (HR-BT-5)
     - `:name` - Operator's name (HR-BT-4)
@@ -111,7 +111,7 @@ defmodule ExCius.RequestParams do
   - `:oib` - Croatian OIB (11-digit string)
   - `:registration_name` - Legal name (string)
   - `:postal_address` - Address map with `:street_name`, `:city_name`, `:postal_zone`, `:country_code`
-  - `:party_tax_scheme` - Tax scheme map with `:company_id`, `:tax_scheme_id`
+  - `:party_tax_scheme` - Tax scheme map with `:company_id`, `:tax_scheme_id` (optional for O-only invoices)
   """
 
   alias ExCius.AllowanceCharge
@@ -293,10 +293,11 @@ defmodule ExCius.RequestParams do
   if you want to validate params that have already been atomized and have defaults set.
   """
   def validate(params) do
+    category_codes = tax_category_codes(params)
+    outside_scope_document? = outside_scope_document?(category_codes)
+
     with {:ok, _} <- validate_required_fields(params),
          {:ok, _} <- validate_formats(params),
-         {:ok, _} <- validate_supplier(params.supplier),
-         {:ok, _} <- validate_customer(params.customer),
          {:ok, _} <- validate_tax_total(params.tax_total, params.currency_code),
          {:ok, _} <- validate_monetary_total(params.legal_monetary_total),
          {:ok, _} <- validate_payment_method(params[:payment_method]),
@@ -310,12 +311,52 @@ defmodule ExCius.RequestParams do
          {:ok, _} <- validate_attachments(params[:attachments]),
          {:ok, _} <- validate_vat_cash_accounting(params[:vat_cash_accounting]),
          {:ok, _} <- validate_allowance_charges(params[:allowance_charges]),
+         {:ok, _} <- validate_category_mix(category_codes),
+         {:ok, _} <- validate_supplier(params.supplier, outside_scope_document?),
+         {:ok, _} <- validate_customer(params.customer, outside_scope_document?),
          {:ok, _} <-
            validate_billing_reference(params[:billing_reference], params[:invoice_type_code]),
          {:ok, _} <- validate_order_reference(params[:order_reference]) do
       {:ok, params}
     end
   end
+
+  defp tax_category_codes(%{} = params) do
+    line_categories =
+      for %{item: %{classified_tax_category: category}} <- List.wrap(params[:invoice_lines]),
+          do: category
+
+    subtotal_categories =
+      case params[:tax_total] do
+        %{tax_subtotals: subtotals} ->
+          for %{tax_category: category} <- List.wrap(subtotals), do: category
+
+        _ ->
+          []
+      end
+
+    allowance_categories =
+      for %{tax_category: category} <- List.wrap(params[:allowance_charges]), do: category
+
+    (line_categories ++ subtotal_categories ++ allowance_categories)
+    |> Enum.map(&tax_category_code/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp tax_category_codes(_), do: []
+
+  defp tax_category_code(%{} = category), do: TaxCategory.code(Map.get(category, :id))
+  defp tax_category_code(_), do: nil
+
+  defp validate_category_mix(codes) do
+    if "O" in codes and Enum.any?(codes, &(&1 != "O")) do
+      {:error, %{tax_categories: "category O cannot be mixed with non-O categories"}}
+    else
+      {:ok, codes}
+    end
+  end
+
+  defp outside_scope_document?(codes), do: "O" in codes and Enum.all?(codes, &(&1 == "O"))
 
   defp atomize_keys(params) do
     params
@@ -593,9 +634,16 @@ defmodule ExCius.RequestParams do
 
   defp validate_invoice_type_code(_), do: {:error, "must be a valid invoice type code"}
 
-  defp validate_supplier(supplier) when is_map(supplier) do
+  defp validate_supplier(supplier, outside_scope_document?) when is_map(supplier) do
+    required_fields =
+      if outside_scope_document? do
+        List.delete(@required_supplier_fields, :party_tax_scheme)
+      else
+        @required_supplier_fields
+      end
+
     missing_fields =
-      Enum.filter(@required_supplier_fields, fn field ->
+      Enum.filter(required_fields, fn field ->
         value = supplier[field]
         is_nil(value) || value == "" || (is_map(value) && map_size(value) == 0)
       end)
@@ -607,7 +655,10 @@ defmodule ExCius.RequestParams do
           |> add_error(:oib, validate_oib(supplier.oib))
           |> add_error(:registration_name, validate_registration_name(supplier.registration_name))
           |> add_error(:postal_address, validate_postal_address(supplier.postal_address))
-          |> add_error(:party_tax_scheme, validate_party_tax_scheme(supplier.party_tax_scheme))
+          |> add_error(
+            :party_tax_scheme,
+            validate_party_tax_scheme(supplier[:party_tax_scheme], outside_scope_document?)
+          )
           |> add_error(
             :party_identification,
             validate_optional_party_identification(supplier[:party_identification])
@@ -629,11 +680,18 @@ defmodule ExCius.RequestParams do
     end
   end
 
-  defp validate_supplier(_), do: {:error, %{supplier: "must be a map"}}
+  defp validate_supplier(_, _), do: {:error, %{supplier: "must be a map"}}
 
-  defp validate_customer(customer) when is_map(customer) do
+  defp validate_customer(customer, outside_scope_document?) when is_map(customer) do
+    required_fields =
+      if outside_scope_document? do
+        List.delete(@required_customer_fields, :party_tax_scheme)
+      else
+        @required_customer_fields
+      end
+
     missing_fields =
-      Enum.filter(@required_customer_fields, fn field ->
+      Enum.filter(required_fields, fn field ->
         value = customer[field]
         is_nil(value) || value == "" || (is_map(value) && map_size(value) == 0)
       end)
@@ -645,7 +703,10 @@ defmodule ExCius.RequestParams do
           |> add_error(:oib, validate_oib(customer.oib))
           |> add_error(:registration_name, validate_registration_name(customer.registration_name))
           |> add_error(:postal_address, validate_postal_address(customer.postal_address))
-          |> add_error(:party_tax_scheme, validate_party_tax_scheme(customer.party_tax_scheme))
+          |> add_error(
+            :party_tax_scheme,
+            validate_party_tax_scheme(customer[:party_tax_scheme], outside_scope_document?)
+          )
 
         if Enum.empty?(errors) do
           {:ok, customer}
@@ -658,7 +719,7 @@ defmodule ExCius.RequestParams do
     end
   end
 
-  defp validate_customer(_), do: {:error, %{customer: "must be a map"}}
+  defp validate_customer(_, _), do: {:error, %{customer: "must be a map"}}
 
   defp validate_oib(value) when is_binary(value) do
     if String.match?(value, ~r/^\d{11}$/) do
@@ -737,6 +798,14 @@ defmodule ExCius.RequestParams do
   end
 
   defp validate_party_tax_scheme(_), do: {:error, "must be a map"}
+
+  defp validate_party_tax_scheme(nil, true), do: :ok
+
+  defp validate_party_tax_scheme(tax_scheme, true)
+       when is_map(tax_scheme) and map_size(tax_scheme) == 0,
+       do: :ok
+
+  defp validate_party_tax_scheme(tax_scheme, _), do: validate_party_tax_scheme(tax_scheme)
 
   defp validate_company_id(value) when is_binary(value) and byte_size(value) > 0, do: :ok
   defp validate_company_id(_), do: {:error, "must be a non-empty string (e.g., HR12345678901)"}
@@ -898,17 +967,20 @@ defmodule ExCius.RequestParams do
 
   defp validate_tax_category(tax_category) when is_map(tax_category) do
     missing_fields =
-      Enum.filter(@required_tax_category_fields, fn field ->
-        value = tax_category[field]
-        is_nil(value) || value == ""
-      end)
+      Enum.filter(
+        tax_category_required_fields(tax_category, @required_tax_category_fields),
+        fn field ->
+          value = tax_category[field]
+          is_nil(value) || value == ""
+        end
+      )
 
     case missing_fields do
       [] ->
         errors =
           %{}
           |> add_error(:id, validate_tax_category_id(tax_category.id))
-          |> add_error(:percent, validate_percent(tax_category.percent))
+          |> add_error(:percent, validate_tax_category_percent(tax_category))
           |> add_error(:tax_scheme_id, validate_tax_scheme_id(tax_category.tax_scheme_id))
 
         if Enum.empty?(errors), do: :ok, else: {:error, errors}
@@ -920,7 +992,7 @@ defmodule ExCius.RequestParams do
 
   defp validate_tax_category(_), do: {:error, "must be a map"}
 
-  defp validate_tax_category_id(value) when is_binary(value) do
+  defp validate_tax_category_id(value) when is_binary(value) or is_atom(value) do
     if TaxCategory.valid?(value) do
       :ok
     else
@@ -930,6 +1002,25 @@ defmodule ExCius.RequestParams do
   end
 
   defp validate_tax_category_id(_), do: {:error, "must be a valid tax category ID string"}
+
+  defp outside_scope_category?(%{} = category),
+    do: TaxCategory.code(Map.get(category, :id)) == "O"
+
+  defp outside_scope_category?(_), do: false
+
+  defp tax_category_required_fields(tax_category, required_fields) do
+    if outside_scope_category?(tax_category),
+      do: List.delete(required_fields, :percent),
+      else: required_fields
+  end
+
+  defp validate_tax_category_percent(tax_category) do
+    if outside_scope_category?(tax_category) and is_nil(tax_category[:percent]) do
+      :ok
+    else
+      validate_percent(tax_category[:percent])
+    end
+  end
 
   defp validate_percent(value) when is_number(value) and value >= 0 and value <= 100, do: :ok
   defp validate_percent(_), do: {:error, "must be a number between 0 and 100"}
@@ -1145,17 +1236,20 @@ defmodule ExCius.RequestParams do
 
   defp validate_classified_tax_category(tax_category) when is_map(tax_category) do
     missing_fields =
-      Enum.filter(@required_classified_tax_fields, fn field ->
-        value = tax_category[field]
-        is_nil(value) || value == ""
-      end)
+      Enum.filter(
+        tax_category_required_fields(tax_category, @required_classified_tax_fields),
+        fn field ->
+          value = tax_category[field]
+          is_nil(value) || value == ""
+        end
+      )
 
     case missing_fields do
       [] ->
         errors =
           %{}
           |> add_error(:id, validate_tax_category_id(tax_category.id))
-          |> add_error(:percent, validate_percent(tax_category.percent))
+          |> add_error(:percent, validate_tax_category_percent(tax_category))
           |> add_error(:tax_scheme_id, validate_tax_scheme_id(tax_category.tax_scheme_id))
           |> add_error(:name, validate_optional_non_empty_string(tax_category[:name]))
 

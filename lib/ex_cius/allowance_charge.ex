@@ -366,17 +366,22 @@ defmodule ExCius.AllowanceCharge do
     ["tax_category.id is required" | errors]
   end
 
-  defp validate_tax_category_percent(errors, %{percent: percent})
-       when is_number(percent) and percent >= 0 do
-    errors
-  end
+  defp validate_tax_category_percent(errors, tax_category) do
+    if TaxCategory.code(Map.get(tax_category, :id)) == "O" and
+         is_nil(Map.get(tax_category, :percent)) do
+      errors
+    else
+      case Map.fetch(tax_category, :percent) do
+        {:ok, percent} when is_number(percent) and percent >= 0 ->
+          errors
 
-  defp validate_tax_category_percent(errors, %{percent: _}) do
-    ["tax_category.percent must be a non-negative number" | errors]
-  end
+        {:ok, _} ->
+          ["tax_category.percent must be a non-negative number" | errors]
 
-  defp validate_tax_category_percent(errors, _) do
-    ["tax_category.percent is required" | errors]
+        :error ->
+          ["tax_category.percent is required" | errors]
+      end
+    end
   end
 
   defp validate_tax_category_scheme(errors, %{tax_scheme_id: scheme}) do

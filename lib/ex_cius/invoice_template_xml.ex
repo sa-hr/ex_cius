@@ -149,19 +149,26 @@ defmodule ExCius.InvoiceTemplateXML do
   """
   def build_xml(params) do
     invoice_type = Map.get(params, :invoice_type_code, InvoiceTypeCode.default())
+    outside_scope_invoice? = outside_scope_invoice?(params)
 
     doc_element =
       if InvoiceTypeCode.credit_type?(invoice_type) do
-        build_credit_note(params)
+        build_credit_note(params, outside_scope_invoice?)
       else
-        build_invoice(params)
+        build_invoice(params, outside_scope_invoice?)
       end
 
     xml_content = XmlBuilder.generate(doc_element)
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" <> xml_content
   end
 
-  defp build_invoice(params) do
+  defp outside_scope_invoice?(params) do
+    Enum.any?(params.invoice_lines, fn line ->
+      TaxCategory.code(line.item.classified_tax_category.id) == "O"
+    end)
+  end
+
+  defp build_invoice(params, outside_scope_invoice?) do
     element(
       :Invoice,
       [
@@ -194,8 +201,8 @@ defmodule ExCius.InvoiceTemplateXML do
         build_billing_reference(params),
         build_order_reference(params),
         build_additional_document_references(params),
-        build_accounting_supplier_party(params),
-        build_accounting_customer_party(params),
+        build_accounting_supplier_party(params, outside_scope_invoice?),
+        build_accounting_customer_party(params, outside_scope_invoice?),
         build_delivery(params),
         build_payment_means(params),
         build_allowance_charges(params),
@@ -207,7 +214,7 @@ defmodule ExCius.InvoiceTemplateXML do
     )
   end
 
-  defp build_credit_note(params) do
+  defp build_credit_note(params, outside_scope_invoice?) do
     element(
       :CreditNote,
       [
@@ -240,8 +247,8 @@ defmodule ExCius.InvoiceTemplateXML do
         build_billing_reference(params),
         build_order_reference(params),
         build_additional_document_references(params),
-        build_accounting_supplier_party(params),
-        build_accounting_customer_party(params),
+        build_accounting_supplier_party(params, outside_scope_invoice?),
+        build_accounting_customer_party(params, outside_scope_invoice?),
         build_delivery(params),
         build_payment_means(params),
         build_allowance_charges(params),
@@ -318,7 +325,7 @@ defmodule ExCius.InvoiceTemplateXML do
       [
         element("cbc:ID", category_id),
         build_tax_category_name(tax_name),
-        element("cbc:Percent", tax_category.percent),
+        build_tax_category_percent(tax_category),
         build_tax_exemption_reason(Map.get(tax_category, :tax_exemption_reason)),
         element("hrextac:HRTaxScheme", [
           element("cbc:ID", scheme_id)
@@ -326,6 +333,14 @@ defmodule ExCius.InvoiceTemplateXML do
       ]
       |> Enum.reject(&is_nil/1)
     )
+  end
+
+  defp build_tax_category_percent(tax_category) do
+    if TaxCategory.code(tax_category.id) == "O" do
+      nil
+    else
+      element("cbc:Percent", tax_category.percent)
+    end
   end
 
   defp build_hr_legal_monetary_total(monetary_total, out_of_scope, currency_id) do
@@ -595,7 +610,7 @@ defmodule ExCius.InvoiceTemplateXML do
     Calendar.strftime(datetime, "%d. %m. %Y. u %H:%M")
   end
 
-  defp build_accounting_supplier_party(params) do
+  defp build_accounting_supplier_party(params, outside_scope_invoice?) do
     supplier = params.supplier
 
     element(
@@ -607,7 +622,7 @@ defmodule ExCius.InvoiceTemplateXML do
             build_endpoint_id(supplier.oib),
             build_party_identification(supplier.oib, Map.get(supplier, :business_unit)),
             build_postal_address(supplier.postal_address),
-            build_party_tax_scheme(supplier.party_tax_scheme),
+            build_party_tax_scheme(Map.get(supplier, :party_tax_scheme), outside_scope_invoice?),
             build_party_legal_entity(supplier.registration_name),
             build_contact(Map.get(supplier, :contact))
           ]
@@ -619,7 +634,7 @@ defmodule ExCius.InvoiceTemplateXML do
     )
   end
 
-  defp build_accounting_customer_party(params) do
+  defp build_accounting_customer_party(params, outside_scope_invoice?) do
     customer = params.customer
 
     element("cac:AccountingCustomerParty", [
@@ -629,7 +644,7 @@ defmodule ExCius.InvoiceTemplateXML do
           build_endpoint_id(customer.oib),
           build_party_identification(customer.oib, Map.get(customer, :business_unit)),
           build_postal_address(customer.postal_address),
-          build_party_tax_scheme(customer.party_tax_scheme),
+          build_party_tax_scheme(Map.get(customer, :party_tax_scheme), outside_scope_invoice?),
           build_party_legal_entity(customer.registration_name),
           build_contact(Map.get(customer, :contact))
         ]
@@ -664,7 +679,9 @@ defmodule ExCius.InvoiceTemplateXML do
     ])
   end
 
-  defp build_party_tax_scheme(tax_scheme) do
+  defp build_party_tax_scheme(_, true), do: nil
+
+  defp build_party_tax_scheme(tax_scheme, false) do
     scheme_id = TaxScheme.code(tax_scheme.tax_scheme_id)
 
     element("cac:PartyTaxScheme", [
@@ -805,7 +822,7 @@ defmodule ExCius.InvoiceTemplateXML do
       "cac:TaxCategory",
       [
         element("cbc:ID", category_id),
-        element("cbc:Percent", tax_category.percent),
+        build_tax_category_percent(tax_category),
         build_tax_exemption_reason(Map.get(tax_category, :tax_exemption_reason)),
         element("cac:TaxScheme", [
           element("cbc:ID", scheme_id)
@@ -961,14 +978,14 @@ defmodule ExCius.InvoiceTemplateXML do
     # Use explicitly provided name, or auto-generate Croatian tax name from percent/category
     tax_name =
       Map.get(tax_category, :name) ||
-        croatian_tax_name(tax_category.percent, category_id)
+        croatian_tax_name(Map.get(tax_category, :percent), category_id)
 
     element(
       "cac:ClassifiedTaxCategory",
       [
         element("cbc:ID", category_id),
         build_tax_category_name(tax_name),
-        element("cbc:Percent", tax_category.percent),
+        build_tax_category_percent(tax_category),
         build_tax_exemption_reason(Map.get(tax_category, :tax_exemption_reason)),
         element("cac:TaxScheme", [
           element("cbc:ID", scheme_id)
@@ -989,6 +1006,7 @@ defmodule ExCius.InvoiceTemplateXML do
   # Special categories: HR:E for exempt, HR:AE for reverse charge
   defp croatian_tax_name(_percent, "E"), do: "HR:E"
   defp croatian_tax_name(_percent, "AE"), do: "HR:AE"
+  defp croatian_tax_name(_percent, "O"), do: nil
   defp croatian_tax_name(percent, _category) when percent == 0, do: "HR:Z"
   defp croatian_tax_name(percent, _category) when percent == 5, do: "HR:PDV5"
   defp croatian_tax_name(percent, _category) when percent == 13, do: "HR:PDV13"
